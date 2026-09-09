@@ -75,19 +75,22 @@
 
 
   /* Course card tints, keyed to the semester a course was taken (customize here).
-     Each season redefines the generic --course-card-* variables below. */
-  --card-fall-bg: #fdf5ea;
-  --card-fall-border: #d9bd92;
-  --card-fall-hover-bg: #fbeeda;
-  --card-fall-border-strong: #b38c4e;
-  --card-spring-bg: #fdf1f4;
-  --card-spring-border: #dfb2bd;
-  --card-spring-hover-bg: #fae6ec;
-  --card-spring-border-strong: #b57387;
-  --card-summer-bg: #fdf9e6;
-  --card-summer-border: #d8c684;
-  --card-summer-hover-bg: #fbf4d3;
-  --card-summer-border-strong: #ac9542;
+     Each season redefines the generic --course-card-* variables below. Keep the three
+     hues far apart — fall is orange (~28deg), summer yellow (~57deg), spring pink
+     (~340deg) — and the tints saturated enough to read as distinct at this lightness;
+     paler, closer hues collapse into the same off-white on a bright screen. */
+  --card-fall-bg: #fdead7;
+  --card-fall-border: #e5ab68;
+  --card-fall-hover-bg: #fbdfc2;
+  --card-fall-border-strong: #b4762b;
+  --card-spring-bg: #fdeaf1;
+  --card-spring-border: #e79bb5;
+  --card-spring-hover-bg: #fbdce8;
+  --card-spring-border-strong: #c25f85;
+  --card-summer-bg: #f9f6cb;
+  --card-summer-border: #cdc046;
+  --card-summer-hover-bg: #f5f1b3;
+  --card-summer-border-strong: #9a8a15;
 
   /* Home page course cards (customize here). */
   --course-card-bg: #fff;
@@ -285,6 +288,14 @@ pre.verbatim code {
   font-size: inherit;
   background: none;
   padding: 0;
+}
+code.verbatim-inline {
+  padding: 0.1em 0.35em;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: calc(4px * var(--ui-scale));
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .note-html-embed {
   margin: 1.5em auto;

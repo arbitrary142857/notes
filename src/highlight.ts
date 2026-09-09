@@ -1,7 +1,9 @@
 import hljs from "highlight.js/lib/core";
+import c from "highlight.js/lib/languages/c";
 import python from "highlight.js/lib/languages/python";
 
 const LANGUAGES: Record<string, typeof python> = {
+  c,
   python,
 };
 

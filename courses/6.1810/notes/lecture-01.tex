@@ -1,0 +1,388 @@
+\lecture{1}
+\title{Introduction}
+
+\begin{document}
+
+\subsection{Logistics}
+
+The assignments for 6.1810 are:
+\begin{itemize}
+    \item Labs (65\%) roughly once every week, with checkoffs.
+    \item A homework reading (5\%) due before the start of each lecture.
+    \item One midterm and one final (30\%).
+\end{itemize}
+
+\subsection{Operating Systems}
+
+An operating system owns:
+\begin{itemize}
+    \item A file system (memory of files).
+    \item A network stack (communicates with the internet).
+    \item Process management.
+    \item State for itself and for the programs it manages.
+\end{itemize}
+The kernel is the ``computer program'' that implements the OS
+and bridges applications in the user space with the hardware.
+Applications in the user space interact with the kernel
+via \emph{system calls}.
+
+We'll be studying the xv6 operating system,
+built around the RISC-V instruction set.
+It's very small; all of its source code
+will become completely readable by the end of this class.
+This has to be run in a computer emulator (QEMU).
+
+\subsection{File Read and Write}
+
+\begin{verbatim}[c]
+// ex1.c: copy input to output.
+
+#include "kernel/types.h"
+#include "user/user.h"
+
+int
+main()
+{
+  char buf[64];
+
+  while(1){
+    int n = read(0, buf, sizeof(buf));
+    if(n <= 0)
+      break;
+    write(1, buf, n);
+  }
+
+  exit(0);
+}
+\end{verbatim}
+
+Here, \verb[c]|read| and \verb[c]|write| are system calls to the kernel.
+These take arguments, just like any other function call.
+\begin{itemize}
+    \item \verb[c]|read(fd, buf, size)|
+    reads up to \verb[c]|size| bytes
+    from the file with \emph{file descriptor}
+    \verb[c]|fd| into the buffer at \verb[c]|buf|.
+    It returns the number of bytes actually read.
+    \item \verb[c]|write(fd, buf, size)|
+    writes \verb[c]|size| bytes from \verb[c]|buf|
+    to the file with file descriptor \verb[c]|fd|.
+    \item The kernel contains, for each process,
+    a table that maps file descriptors to files.
+    A single file descriptor can refer to different files
+    depending on which process makes the system call.
+    \begin{itemize}
+        \item File descriptor \verb[c]|0| is standard input.
+        \item File descriptor \verb[c]|1| is standard output.
+    \end{itemize}
+\end{itemize}
+Running this program
+waits for the user to enter some input,
+which the program then echoes back.
+
+\subsection{File Creation}
+
+\begin{verbatim}[c]
+// ex2.c: create a file, write to it.
+
+#include "kernel/types.h"
+#include "user/user.h"
+#include "kernel/fcntl.h"
+
+int
+main()
+{
+  int fd = open("out", O_WRONLY | O_CREATE | O_TRUNC);
+
+  printf("open returned fd %d\n", fd);
+
+  write(fd, "ooo\n", 4);
+
+  exit(0);
+}
+\end{verbatim}
+
+The \verb[c]|open(filename, flags)| system call
+opens the file with name \verb[c]|filename|
+and returns its file descriptor.
+The second parameter \verb[c]|flags| modifies
+the behavior of \verb[c]|open| like so:
+\begin{itemize}
+    \item The flag \verb[c]|O_CREATE| indicates that
+    \verb[c]|open| should create the file
+    if it does not already exist.
+    \item The flag \verb[c]|O_WRONLY| indicates that
+    the file should be opened for writing only.
+    \item The flag \verb[c]|O_TRUNC| indicates that
+    if the file already exists,
+    its contents should be cut to zero bytes first.
+\end{itemize}
+
+Running this program will create a new file named
+\verb[c]|out| that contains the text \verb[c]|ooo|.
+
+\begin{remark}
+    Every system call can raise an error,
+    so there should always be some code
+    that checks the return value of any system call
+    and prints an error message accordingly
+    (e.g., if \verb[c]|fd < 0|).
+\end{remark}
+
+\subsection{Process Creation}
+
+\begin{verbatim}[c]
+// ex3.c: create a new process with fork()
+
+#include "kernel/types.h"
+#include "user/user.h"
+
+int
+main()
+{
+  int pid;
+
+  printf("before\n");
+  pid = fork();
+
+  printf("fork() returned %d\n", pid);
+
+  if(pid == 0){
+    printf("child\n");
+  } else {
+    printf("parent\n");
+  }
+  
+  exit(0);
+}
+\end{verbatim}
+
+The \verb[c]|fork| system call
+creates a \emph{copy} of the running process
+(in this case, \verb[c]|ex3|).
+\begin{itemize}
+    \item The original copy is called the \emph{parent}.
+    \begin{itemize}
+        \item The parent has some process ID;
+        in the code above, that PID is never read.
+    \end{itemize}
+    \item The new copy is called the \emph{child}.
+    \begin{itemize}
+        \item The child has some other process ID;
+        let's say it's \verb[c]|24|.
+    \end{itemize}
+    \item The \verb[c]|fork| system call
+    returns a different thing
+    depending on which process is calling it.
+    \begin{itemize}
+        \item In the parent process,
+        \verb[c]|fork| returns the child's process ID.
+        \item In the child process,
+        \verb[c]|fork| will always return \verb[c]|0|.
+    \end{itemize}
+    It's designed this way so that a process
+    can easily tell whether it's the child.
+\end{itemize}
+Running this program will print something like this:
+\begin{verbatim}
+before
+fofrokk(())  rreettuurrnneedd  024
+
+chPiAlRdE
+NT
+\end{verbatim}
+The two processes' output interleaves character by character.
+Notice how \verb[c]|before| only appears once,
+because only the parent process runs that line.
+
+\begin{remark}
+    The copied process inherits its parent's memory,
+    but they do not \emph{share} memories.
+\end{remark}
+
+\subsection{Replacing Processes with Executable Files}
+
+\begin{verbatim}[c]
+// ex4.c: replace a process with an executable file
+
+#include "kernel/types.h"
+#include "user/user.h"
+
+int
+main()
+{
+  char *argv[] = { "echo", "this", "is", "echo", 0 };
+
+  exec("echo", argv);
+
+  printf("exec failed!\n");
+
+  exit(0);
+}
+\end{verbatim}
+
+Here, \verb[c]|echo| is a program pre-compiled into xv6
+(the executable \verb[c]|/echo|)
+that prints its arguments back out,
+separated by spaces, and then a newline.
+
+The \verb[c]|exec(filename, args)| system call
+tells the kernel to completely discard the calling process's memory
+and instead run the program \verb[c]|filename|;
+if \verb[c]|exec| succeeds, nothing after it
+in the calling program ever runs.
+
+Naturally, \verb[c]|args| is the list of arguments
+to the program \verb[c]|filename|.
+The first element in \verb[c]|args| is not printed by \verb[c]|echo|;
+by convention, the first element is always the name of the program
+to be run.
+
+Running \verb[c]|ex4| prints the following.
+
+\begin{verbatim}
+this is echo
+
+\end{verbatim}
+
+\subsection{Waiting}
+
+\begin{verbatim}[c]
+// ex5.c: fork then exec
+
+#include "kernel/types.h"
+#include "user/user.h"
+
+int
+main()
+{
+  int pid, status;
+
+  pid = fork();
+  if(pid == 0){
+    char *argv[] = { "echo", "THIS", "IS", "ECHO", 0 };
+    exec("echo", argv);
+    printf("exec failed!\n");
+    exit(1); // this line never gets called
+  } else {
+    printf("parent waiting\n");
+    int xxx = wait(&status);
+    printf("child %d exited with status %d\n", xxx, status);
+  }
+
+  exit(0);
+}
+\end{verbatim}
+
+The \verb[c]|wait(&status)| system call
+makes a parent process pause until
+one of its children exits,
+at which point \verb[c]|wait| will:
+\begin{itemize}
+    \item Return the PID \verb[c]|xxx|
+    of the child that exited.
+    \item Update the data
+    at address \verb[c]|&status|
+    with the way the child exited.
+    \begin{itemize}
+        \item If the child exits via \verb[c]|exit(3);|,
+        then \verb[c]|3| is written into \verb[c]|status|.
+    \end{itemize}
+\end{itemize}
+
+Running this program produces the following.
+
+\begin{verbatim}
+parent waiting
+THIS IS ECHO
+child 11 exited with status 0
+\end{verbatim}
+
+Notably, the \verb[c]|echo| process
+exits via \verb[c]|exit(0);|.
+
+\subsection{Output Redirecting}
+
+\begin{verbatim}[c]
+// ex6.c: run a command with output redirected
+
+#include "kernel/types.h"
+#include "user/user.h"
+#include "kernel/fcntl.h"
+
+int
+main()
+{
+  int pid;
+
+  pid = fork();
+  if(pid == 0){
+    close(1);
+    open("out", O_WRONLY | O_CREATE | O_TRUNC);
+
+    char *argv[] = { "echo", "ex6's", "redirected", "echo", 0 };
+    exec("echo", argv);
+    printf("exec failed!\n");
+    exit(1);
+  } else {
+    wait((int *) 0); // this is a null pointer: "don't write the status"
+    printf("wait returned\n");
+  }
+
+  exit(0);
+}
+\end{verbatim}
+
+The system call \verb[c]|close(fd);| just
+closes the file with file descriptor \verb[c]|fd|.
+
+The goal, here, is to somehow replace the standard output file
+with the \verb[c]|out| file created by the child process.
+In other words, the goal is to take
+the child process's file-descriptor-to-file table,
+delete the row that reads \verb|1 = standard-output|,
+and add a row that reads \verb|1 = out|.
+This way, the \verb[c]|echo| program
+will write to \verb|1 = out|.
+
+The code above relies on the following trick:
+the system call \verb[c]|open(filename, flags)|
+always assigns the file \verb[c]|filename|
+to the \emph{lowest} available file descriptor.
+Since file descriptor \verb[c]|1| was \emph{just} deleted,
+it is guaranteed that the kernel
+will create file \verb[c]|out| so that
+its file descriptor is \verb[c]|1|.
+
+\begin{remark}
+    Note that this reassignment of
+    file descriptor \verb[c]|1| does \emph{not} affect
+    the parent process's standard output.
+    This is because---repeating this again---the kernel
+    keeps separate file-descriptor-to-file tables
+    for each individual process.
+\end{remark}
+
+Here's what calling this process
+in the terminal might look like.
+
+\begin{verbatim}
+$ ex6
+wait returned
+$ cat out
+ex6's redirected echo
+\end{verbatim}
+
+This effectively implements IO redirection,
+which can also be accomplished in the shell
+using the \verb|>| symbol.
+
+\begin{verbatim}
+$ echo ex6's redirected echo > out
+$ cat out
+ex6's redirected echo
+\end{verbatim}
+
+Only the shell needs to know how to interpret \verb|>|.
+
+\end{document}

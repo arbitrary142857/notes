@@ -1,80 +1,84 @@
-/* GitHub-like syntax colors (scoped to verbatim blocks). */
+/* GitHub-like syntax colors (scoped to verbatim blocks and inline \verb). */
 pre.verbatim code.hljs {
   display: block;
   padding: 0;
   background: transparent;
   color: #24292e;
 }
-pre.verbatim .hljs-doctag,
-pre.verbatim .hljs-keyword,
-pre.verbatim .hljs-meta .hljs-keyword,
-pre.verbatim .hljs-template-tag,
-pre.verbatim .hljs-template-variable,
-pre.verbatim .hljs-type,
-pre.verbatim .hljs-variable.language_ {
-  color: #d73a49;
-}
-pre.verbatim .hljs-title,
-pre.verbatim .hljs-title.class_,
-pre.verbatim .hljs-title.class_.inherited__,
-pre.verbatim .hljs-title.function_ {
-  color: #6f42c1;
-}
-pre.verbatim .hljs-attr,
-pre.verbatim .hljs-attribute,
-pre.verbatim .hljs-literal,
-pre.verbatim .hljs-meta,
-pre.verbatim .hljs-number,
-pre.verbatim .hljs-operator,
-pre.verbatim .hljs-variable,
-pre.verbatim .hljs-selector-attr,
-pre.verbatim .hljs-selector-class,
-pre.verbatim .hljs-selector-id {
-  color: #005cc5;
-}
-pre.verbatim .hljs-regexp,
-pre.verbatim .hljs-string,
-pre.verbatim .hljs-meta .hljs-string {
-  color: #032f62;
-}
-pre.verbatim .hljs-built_in,
-pre.verbatim .hljs-symbol {
-  color: #e36209;
-}
-pre.verbatim .hljs-comment,
-pre.verbatim .hljs-code,
-pre.verbatim .hljs-formula {
-  color: #6a737d;
-}
-pre.verbatim .hljs-name,
-pre.verbatim .hljs-quote,
-pre.verbatim .hljs-selector-tag,
-pre.verbatim .hljs-selector-pseudo {
-  color: #22863a;
-}
-pre.verbatim .hljs-subst {
+code.verbatim-inline.hljs {
+  background: transparent;
   color: #24292e;
 }
-pre.verbatim .hljs-section {
+.verbatim .hljs-doctag,
+.verbatim .hljs-keyword,
+.verbatim .hljs-meta .hljs-keyword,
+.verbatim .hljs-template-tag,
+.verbatim .hljs-template-variable,
+.verbatim .hljs-type,
+.verbatim .hljs-variable.language_ {
+  color: #d73a49;
+}
+.verbatim .hljs-title,
+.verbatim .hljs-title.class_,
+.verbatim .hljs-title.class_.inherited__,
+.verbatim .hljs-title.function_ {
+  color: #6f42c1;
+}
+.verbatim .hljs-attr,
+.verbatim .hljs-attribute,
+.verbatim .hljs-literal,
+.verbatim .hljs-meta,
+.verbatim .hljs-number,
+.verbatim .hljs-operator,
+.verbatim .hljs-variable,
+.verbatim .hljs-selector-attr,
+.verbatim .hljs-selector-class,
+.verbatim .hljs-selector-id {
+  color: #005cc5;
+}
+.verbatim .hljs-regexp,
+.verbatim .hljs-string,
+.verbatim .hljs-meta .hljs-string {
+  color: #032f62;
+}
+.verbatim .hljs-built_in,
+.verbatim .hljs-symbol {
+  color: #e36209;
+}
+.verbatim .hljs-comment,
+.verbatim .hljs-code,
+.verbatim .hljs-formula {
+  color: #6a737d;
+}
+.verbatim .hljs-name,
+.verbatim .hljs-quote,
+.verbatim .hljs-selector-tag,
+.verbatim .hljs-selector-pseudo {
+  color: #22863a;
+}
+.verbatim .hljs-subst {
+  color: #24292e;
+}
+.verbatim .hljs-section {
   color: #005cc5;
   font-weight: 700;
 }
-pre.verbatim .hljs-bullet {
+.verbatim .hljs-bullet {
   color: #735c0f;
 }
-pre.verbatim .hljs-emphasis {
+.verbatim .hljs-emphasis {
   color: #24292e;
   font-style: italic;
 }
-pre.verbatim .hljs-strong {
+.verbatim .hljs-strong {
   color: #24292e;
   font-weight: 700;
 }
-pre.verbatim .hljs-addition {
+.verbatim .hljs-addition {
   color: #22863a;
   background-color: #f0fff4;
 }
-pre.verbatim .hljs-deletion {
+.verbatim .hljs-deletion {
   color: #b31d28;
   background-color: #ffeef0;
 }

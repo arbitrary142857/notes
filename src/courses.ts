@@ -73,7 +73,25 @@ export const COURSES: Course[] = [
     subtitle: "Machine Learning",
     semester: "☀️ Summer 2026",
     summary: `
-      Notes taken through Lecture 15 of 24.
+      Notes taken through Lecture 16 of 24.
+    `,
+  },
+  {
+    id: "6.4210",
+    title: "6.4210",
+    subtitle: "Robotic Manipulation",
+    semester: "🍂 Fall 2026",
+    summary: `
+      Notes taken through Lecture 1 of ??.
+    `,
+  },
+  {
+    id: "6.1810",
+    title: "6.1810",
+    subtitle: "Operating Systems Engineering",
+    semester: "🍂 Fall 2026",
+    summary: `
+      Notes taken through Lecture 1 of ??.
     `,
   },
 ];

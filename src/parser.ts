@@ -287,6 +287,16 @@ function stripComments(source: string): string {
       continue;
     }
 
+    if (source.startsWith("\\verb", i)) {
+      const verbStart = i + "\\verb".length;
+      const verb = readVerb(source, source[verbStart] === "*" ? verbStart + 1 : verbStart);
+      if (verb) {
+        out += source.slice(i, verb.end);
+        i = verb.end;
+        continue;
+      }
+    }
+
     if (source[i] === "%" && (i === 0 || source[i - 1] !== "\\")) {
       const nl = source.indexOf("\n", i);
       if (nl === -1) break;
@@ -564,6 +574,43 @@ function renderVerbatim(content: string, language = ""): string {
     }
   }
   return `<pre class="verbatim"><code>${escapeText(content)}</code></pre>`;
+}
+
+/** Read `\verb<delim>...<delim>`, with an optional `[language]` before the delimiter. */
+function readVerb(
+  input: string,
+  start: number,
+): { content: string; language: string; end: number } | null {
+  let i = start;
+  let language = "";
+
+  const optional = readOptionalBracket(input, i);
+  if (optional) {
+    language = optional.content.trim();
+    i = optional.end;
+  }
+
+  const delimiter = input[i];
+  if (!delimiter || /[a-zA-Z0-9\s*]/.test(delimiter)) return null;
+
+  const close = input.indexOf(delimiter, i + 1);
+  if (close === -1) return null;
+
+  const content = input.slice(i + 1, close);
+  if (content.includes("\n")) return null;
+
+  return { content, language, end: close + 1 };
+}
+
+function renderInlineCode(content: string, language = ""): string {
+  const lang = language.trim().toLowerCase();
+  if (lang) {
+    const highlighted = highlightCode(content, lang);
+    if (highlighted) {
+      return `<code class="verbatim verbatim-inline hljs language-${escapeAttr(lang)}">${highlighted}</code>`;
+    }
+  }
+  return `<code class="verbatim verbatim-inline">${escapeText(content)}</code>`;
 }
 
 function sanitizeCssLength(value: string): string {
@@ -848,6 +895,14 @@ function parseCommand(
     const arg = readBraced(input, i);
     if (!arg) return { html: escapeText(input[start]), end: start + 1 };
     return { html: "", end: arg.end };
+  }
+
+  if (name === "verb" || name === "verb*") {
+    const verb = readVerb(input, i);
+    if (verb) {
+      return { html: renderInlineCode(verb.content, verb.language), end: verb.end };
+    }
+    return { html: escapeText(input.slice(start, i)), end: i };
   }
 
   if (name === "noindent" || name === "line" || name === "vspace") {

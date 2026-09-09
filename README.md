@@ -47,6 +47,31 @@ Audio uses `\includeaudio` with the same path convention under `audio/`:
 
 Omit the extension when a unique match exists (`.wav`, `.mp3`, `.ogg`, etc.). Optional `\graphicspath` and `\audiopath` in the preamble override the default directories.
 
+### Code in notes
+
+Multi-line code is a `verbatim` environment with an optional language for syntax highlighting (`c` and `python` are registered in `src/highlight.ts`):
+
+```tex
+\begin{verbatim}[c]
+int
+main()
+{
+  char buf[64];
+  int n = read(0, buf, sizeof(buf));
+}
+\end{verbatim}
+```
+
+Inline code is `\verb`, with the same optional language:
+
+```tex
+\verb[c]|read(int fd, void *buf, int size)| returns the number of bytes read into \verb|buf|.
+```
+
+The delimiter is any non-alphanumeric character (`|`, `+`, `!`, …), so pick one the snippet does not contain. Content between the delimiters is literal — `%`, `_`, `#`, `\` and `$` need no escaping — but it must stay on one line. Omit the language to get plain monospace instead of colors.
+
+Adding a language: import it from `highlight.js/lib/languages/` and add it to `LANGUAGES` in `src/highlight.ts`. Colors come from `highlight/github.css`, which is scoped to `.verbatim` so blocks and inline snippets share one theme.
+
 ## Local development
 
 ```bash
@@ -100,9 +125,10 @@ Search Console is verified with a **DNS TXT record on the `jasonmao.me` domain p
 
 ## Adding a course
 
-1. Create `courses/<course-id>/` with `preamble.tex`, `notes/`, `images/`, and `audio/` as needed.
+1. Create `courses/<course-id>/` with `preamble.tex`, `notes/`, `images/`, and `audio/` as needed. Seed `preamble.tex` by copying the most recent course's and editing the header comment, then tune colors and environments to taste — an empty preamble builds without error but leaves every macro the notes use (`\graphicspath`, `proof`, `remark`, …) undefined.
 2. Add an entry to `COURSES` in `src/courses.ts` (`id`, `title`, `subtitle`, plus `semester` and `summary`, which fill the course's card on the site home page).
-3. Run `npm run build`.
+3. Name the course in `siteHomeDescription` in `src/build.ts`. That string is the home page's meta description and is hand-written rather than derived from `COURSES`, so `assertHomeDescriptionNamesEveryCourse` fails the build until it mentions the new course number. Keep it under 155 characters (`META_DESCRIPTION_LIMIT`), and name subjects the way someone would search for them.
+4. Run `npm run build`.
 
 Use `\lecture{N}` or `\lectures{N,M}` in note file headers, as before.
 

@@ -217,8 +217,8 @@ for (const course of COURSES) {
  * so {@link assertHomeDescriptionNamesEveryCourse} keeps it honest.
  */
 const siteHomeDescription =
-  "Student-written lecture notes for MIT 18.701 (algebra), 6.1220 (algorithms), " +
-  "6.300 (signal processing), 18.650 (statistics), and 6.790 (machine learning).";
+  "Student-written MIT lecture notes: 18.701 algebra, 6.1220 algorithms, " +
+  "6.300 signals, 18.650 statistics, 6.790 machine learning, 6.4210 robotics, 6.1810 OS.";
 assertHomeDescriptionNamesEveryCourse();
 writePage(join(distDir, "index.html"), SITE_META_TITLE, "", renderSiteHome(), {
   description: siteHomeDescription,
