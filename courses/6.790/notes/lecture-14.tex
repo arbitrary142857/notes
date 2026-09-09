@@ -53,7 +53,7 @@ Most images have color channels, too---three of them (RGB), to be precise.
 So more generally, we should think of each layer of our NN
 as being a three-dimensional $H \times W \times C$ grid of nodes.
 
-The input layer might be a $1000 \times 1000 \times C$ grid, for example.
+The input layer might be a $1000 \times 1000 \times 3$ grid, for example.
 Importantly, our hidden layers might also have more than one channel.
 So our maps between layers must be able to
 meaningfully accept three-dimensional \emph{tensors} as input.
