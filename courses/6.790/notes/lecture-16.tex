@@ -1,0 +1,145 @@
+\lecture{16}
+\title{Sparse Representations: NNs vs. Kernels}
+
+\begin{document}
+
+\begin{remark}
+    These notes are not particularly well-written,
+    as they gloss over most of the computational details
+    and only summarize the main conceptual points
+    of this lecture, occasionally using mathematical informalities.
+\end{remark}
+
+\subsection{NNs vs. Kernels}
+
+Recall from \href{/6.790/lectures/6/#kernels-unlimited-features}{Lecture 6}
+and \href{/6.790/lectures/12}{Lecture 12}
+that neural networks and kernel methods
+are essentially the same architecture:
+the hidden layers of a neural network
+encode the features that define the kernel.
+
+The purpose of this lecture
+is to roughly explain how neural networks
+may be advantageous relative to kernel methods
+when the model being learned
+has a \emph{sparse representation}.
+
+A model is said to have a \textbf{sparse representation}
+if it is a map $\mathbb{R}^d \to \mathbb{R}$
+for which only $r \ll d$ of the $d$ input dimensions
+are relevant.
+For example, $f \colon \mathbb{R}^{1000} \to \mathbb{R}$
+via $f(x) := x_1 + x_1x_2 + x_1x_2x_3$ has a sparse representation,
+with $r = 3$ and $d = 1000$.
+
+\subsection{Kernel Performance}
+
+In the $f \colon \mathbb{R}^{1000} \to \mathbb{R}$ toy example,
+kernel methods will produce a hypothesis
+$h(x) := w^{\top} \phi(x)$, where
+$\phi(x)$ is a vector of dimension at least
+$\binom{1000}{3} = O(1000^3)$.
+Now imagine performing SGD to optimize the coefficients of $w$.
+
+We might assume, heuristically, that
+we initialize $w_0$ to have equal-valued coefficients,
+all of value $O(1000^{-3})$.
+We do this because---with zero prior knowledge about the truth---we
+must initialize $w$ in a way that weighs all possibilities equally.
+
+As SGD progresses, we would like the three coefficients of $w$
+corresponding to the terms $(x_1, x_1x_2, x_1x_2x_3)$ to have weight $O(1)$,
+whereas the remaining coefficients of $w$ remain small.
+If we (heuristically) assume that
+a single iteration of SGD will shift the coefficients of $w$
+by at most $O(1000^{-3})$,
+then this implies that we need $\Omega(1000^3)$ iterations
+of SGD to learn $w$.
+
+This is a lot of iterations!  Can NNs perform better?
+
+\subsection{NN Performance}
+
+The advantage of NNs (as we will explain in this section) is the following:
+\begin{itemize}
+    \item Kernel methods use SGD to directly attack the question,
+    ``Which of the $O(1000^3)$ features are relevant?''
+    \item A neural network ultimately uses SGD to answer the same question,
+    but it does so incrementally.
+    \begin{itemize}
+        \item Its first layer uses SGD to answer the question,
+        ``Which $r = 3$ of the $d = 1000$ input dimensions are relevant?''
+        \item Then the deeper hidden layers only need
+        use SGD to answer the question
+        ``Which of the $O(r^3)$ features are relevant?''
+        \item The advantage for NNs is especially evident
+        given \emph{sparse representations} (i.e., $r \ll d$).
+    \end{itemize}
+\end{itemize}
+
+\textbf{Reminder.} The first hidden layer does \emph{not} encode
+the same set of $O(1000^3)$ features that the kernel encodes!
+A single neuron in the first hidden layer
+can only represent $\mathrm{ReLU}(w^{\top}x)$, after all---not
+even close to anything like $x_1x_2x_3$.
+It is only the final output of \emph{all} of the hidden layers together
+that is capable of learning all $O(1000^3)$ features.
+
+\begin{remark}
+    Technically, as
+    \href{/6.790/lectures/12/#neural-network-universal-approximation}{Lecture 12}
+    describes, a linear combination of
+    the neurons in just a single hidden layer of an NN
+    is capable of approximating any function arbitrarily well,
+    so technically a linear combination of the neurons in a single hidden layer
+    could represent all $O(1000^3)$ features,
+    so long as enough neurons are used.
+
+    But in practice, using just a single layer is infeasible;
+    recalling \href{/6.790/lectures/13/#neural-network-depth}{Lecture 13},
+    the number of parameters in an NN can be reduced
+    by increasing the number of hidden layers.
+\end{remark}
+
+Let's explain, now, how SGD allows NNs to answer the first question
+using the weights $W \in \mathbb{R}^{1000 \times m}$
+between its input layer and its first hidden layer.
+``Which $r = 3$ of the $d = 1000$ input dimensions are relevant?''
+
+The point is that each iteration of SGD
+might shift any individual weight of $W$ by $O((1000m)^{-1})$,
+rather than $O(1000^{-3})$,
+because there are only $1000m$ parameters in $W$.
+So here's what happens:
+\begin{itemize}
+    \item The term $x_1$ inside of $f(x)$
+    incentivizes increasing the weights of $w_{1, j}$
+    within $O(1000m)$ SGD iterations.
+    \item Now that $w_{1, j}$ is large,
+    the term $x_1x_2$ incentivizes
+    increasing the weights of $w_{2, j}$
+    within another $O(1000m)$ SGD iterations.
+    \item With $w_{1, j}$ and $w_{2, j}$ large,
+    the term $x_1x_2x_3$ incentivizes increasing
+    the weights of $w_{3, j}$ after $O(1000m)$ more SGD iterations.
+\end{itemize}
+So it only takes $O(dmr)$ SGD iterations
+to identify which $r$ input dimensions are relevant,
+after which only $O(r^3)$ SGD steps are needed
+to determine which of the $O(r^3)$ features using those
+relevant dimensions are relevant.
+
+\begin{remark}
+    In the first $O(1000m)$ SGD iterations,
+    there is little incentive to increase the weights of
+    $w_{2, j}$ or $w_{3, j}$.
+    This is because $w_{1, j}$ is not large enough---more precisely,
+    the $\frac{\partial \mathcal{R}}{\partial w_{2, j}}$ update
+    is proportional to $w_{1, j}$.
+
+    Thus, NNs perform best for \textbf{staircase functions};
+    it is easier to learn $f(x) = x_1 + x_1x_2$ than $f(x) = x_1 + x_2x_3$.
+\end{remark}
+
+\end{document}
