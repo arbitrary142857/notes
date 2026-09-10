@@ -1,0 +1,193 @@
+\lecture{1}
+\title{Introduction, Finite Automata, Regular Expressions}
+
+\begin{document}
+
+The class website is
+\href{https://math.mit.edu/~sipser/18404/}{https://math.mit.edu/~sipser/18404/},
+taught by Michael Sipser.
+This course follows the textbook
+\emph{Introduction to the Theory of Computation, 3rd edition}
+(also written by Michael Sipser).
+
+\subsection{Finite Automata}
+
+One simplified model of computation is the \textbf{finite automaton}.
+Here's a prototypical example.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-01/automata-example}}
+\end{center}
+\textbf{Definition.} A finite automaton $M = (Q, \Sigma, \delta, q_0, F)$
+is a five-tuple of the following:
+\begin{itemize}
+    \item A finite set $Q$ of \textbf{states}.  In this example,
+    we have $Q = \{q_1, q_2, q_3\}$.
+    \item A finite \textbf{input alphabet} $\Sigma$.  In this example,
+    we have $\Sigma = \{\str{0}, \str{1}\}$.
+    \item A \textbf{transition function} $\delta \colon Q \times \Sigma \to Q$.
+    In this example, the map $\delta$ is given
+    by the labels of the edges of a directed graph.
+    \item A \textbf{start state} $q_0 \in Q$.  In this example,
+    we have $q_0 = q_1$.
+    \item A set $F \subseteq Q$ of \textbf{accept states}.  In this example,
+    we have $F = \{q_3\}$.
+\end{itemize}
+We say that ``$M$ \textbf{accepts} $w = w_1w_2\dots w_n$''
+if starting at $q_0$ and following the arrows according to $w$
+lands at an accept state.
+
+\textbf{Example.}
+In the example above,
+we say that $M$ accepts \str{01101} but rejects \str{00101}.
+
+\begin{remark}
+    Note that an accept state of a finite automaton
+    need not be ``stable'';
+    it may have arrows to other states.
+\end{remark}
+
+\subsection{(Regular) Languages}
+
+\textbf{Definition.}
+Given a finite automaton $M$,
+the \textbf{language} $L(M)$ of $M$
+is the set of all (finite) strings that $M$ accepts.
+Furthermore, we say that
+``$M$ \textbf{recognizes} $A$'' for some language $A$
+if and only if $A = L(M)$.
+
+\textbf{Example.}
+In the example above,
+the language $L(M)$ of $M$ is
+the set of (finite) strings with \str{11} as a substring.
+
+\textbf{Definition.}
+A language $A$ is \textbf{regular}
+if $A$ is the language of some finite automaton.
+
+\textbf{Example.} It turns out that\dots
+\begin{itemize}
+    \item The language of all strings with an even number of \str{1}s
+    is regular.  (Obviously.)
+    \item The language of all strings with an equal number of
+    \str{0}s and \str{1}s is not regular.  (Not so obviously.)
+\end{itemize}
+Our goal is to be able to identify what the regular languages are.
+
+\subsection{Regular Operations and Regular Expressions}
+
+It helps to define the following:
+
+\textbf{Definition.}
+For any two languages $A$ and $B$,
+we can construct new languages via the \textbf{regular operations}:
+\begin{itemize}
+    \item Their \textbf{union} is
+    $A \cup B := \{w \mid w \in A \text{ or } w \in B\}$.
+    \item Their \textbf{concatenation} is
+    $A \circ B = AB = \{xy \mid x \in A, y \in B\}$.
+    \item The \textbf{star} of a language is
+    $A^* := \{x_1x_2\dots x_k \mid k \geq 0, x_i \in A\}$
+    (that is, the regex \verb|*|).
+    \begin{itemize}
+        \item Note that $A^*$ always contains
+        the \emph{empty string}, which we denote $\epsilon$.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Example.}
+If $A = \{\str{01}, \str{10}\}$ and
+$B = \{\str{22}, \str{33}, \str{44}\}$,
+then we have:
+\[ A \cup B = \{\str{01}, \str{10},
+\str{22}, \str{33}, \str{44}\}
+~~~ \text{ and }  ~~~
+A \circ B = \{\str{0122}, \str{0133}, \str{0144},
+\str{1022}, \str{1033}, \str{1044}\}. \]
+Meanwhile, we have $A^* = \{\epsilon,
+\str{01}, \str{10}, \str{0101}, \str{0110}, \str{1001}, \str{1010},
+\str{010101}, \str{010110}, \dots\}$.
+
+\textbf{Definition.}
+We say that a \textbf{regular expression}
+is any expression formed using $\epsilon$, $\emptyset$,
+atoms $a \in \Sigma$, and regular operations.
+\begin{itemize}
+    \item Write $(\str{0} \cup \str{1})^*$
+    to mean the set of all finite (possibly empty) binary strings.
+    \item Write $(\str{0} \cup \str{1})^*\str{1}$
+    to mean the set of all binary strings that end in \str{1}.
+    \item Write $(\str{0} \cup \str{1})^*\str{11}(\str{0} \cup \str{1})^*$
+    to mean the set of all binary strings with \str{11} as a substring.
+    \item Things like
+    $(\str{0} \cup \str{1})^*\str{11}(\str{0} \cup \str{1})^*
+    \cup (\str{0} \cup \str{1})^*\str{00}(\str{0} \cup \str{1})^*$
+    are also regular expressions.
+\end{itemize}
+As the name suggests, the following turns out to be true.
+
+\begin{theorem}{Regular Expressions are Regular}
+    A language is regular if and only if some regular expression describes it.
+\end{theorem}
+
+For the rest of lecture,
+we'll work through a proof of one step of the ``if'' direction.
+
+\begin{theorem}{Union of Regular Languages}
+    If $A_1$ and $A_2$ are regular languages,
+    then so is $A_1 \cup A_2$.
+\end{theorem}
+
+\begin{proof}
+    The idea is to use the automata $M_1$ and $M_2$ that recognize
+    $A_1$ and $A_2$ (respectively)
+    and run them both simultaneously in a single automaton
+    by taking their ``cross product''.
+    Here's an example of what that might look like.
+    \begin{center}
+        \frame{\includegraphics[width=0.6\textwidth]{lecture-01/union-proof}}
+    \end{center}
+    Here, $M_1$ and $M_2$ are depicted as
+    ``one-dimensional'' automata,
+    drawn horizontally and vertically, respectively.
+    Their cross product $M$ is the $3 \times 3$ grid of states
+    above and to the right of them.
+    Evidently, the language of $M$ is $A_1 \cup A_2$.
+
+    Formally, writing $M_k = (Q_k, \Sigma_k, \delta_k, q_{k, 0}, F_k)$,
+    the proof is to consider
+    the finite automaton $M = (Q, \Sigma, \delta, q_0, F)$ given by:
+    \begin{itemize}
+        \item The state set $Q := Q_1 \times Q_2
+        = \{(q_{1, i}, q_{2, j}) \mid
+        q_{1, i} \in Q_1, q_{2, j} \in Q_2\}$.
+        \item The input alphabet $\Sigma := \Sigma_1 = \Sigma_2$.
+        \item The transition function $\delta((q_{1, i}, q_{2, j}), a)
+        := (\delta_1(q_{1, i}, a), \delta_2(q_{2, j}, a))$.
+        \item The start state $q_0 := (q_{1, 0}, q_{2, 0})$.
+        \item The accept states $F := \{(q_{1, i}, q_{2, j})
+        \mid q_{1, i} \in F_1 \text{ or } q_{2, j} \in F_2\}$.
+    \end{itemize}
+    And that's it. ~ $\blacksquare$
+\end{proof}
+
+\begin{remark}
+    Implicitly, we've assumed that the languages $A_1$ and $A_2$
+    use the same alphabet $\Sigma = \Sigma_1 = \Sigma_2$.
+    We will almost always assume this in general,
+    but even without this assumption,
+    the argument is easily repairable by
+    taking $\Sigma := \Sigma_1 \cup \Sigma_2$ instead.
+\end{remark}
+
+By replacing ``$F := \{(q_{1, i}, q_{2, j})
+\mid q_{1, i} \in F_1 \text{ or } q_{2, j} \in F_2\}$''
+with ``$F := F_1 \times F_2$'' in the proof,
+one can also prove the following:
+
+\begin{theorem}{Intersection of Regular Languages}
+    If $A_1$ and $A_2$ are regular languages,
+    then so is $A_1 \cap A_2$.
+\end{theorem}
+
+\end{document}

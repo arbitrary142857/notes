@@ -1,0 +1,123 @@
+% Preamble for 6.790 (Grad ML). Interpreted by src/parser.ts.
+
+\documentclass[12pt]{article}
+\usepackage[inline]{asymptote}
+\usepackage{tikz}
+\usepackage[margin=0.5in, footskip=0.75cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{txfonts}
+\usepackage{amsfonts}
+\usepackage{verbatim}
+\usepackage{arcs}
+\usepackage{dsfont}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{braket}
+\usepackage{mathtools}
+\usepackage{tcolorbox}
+
+\usepackage{graphicx}
+\graphicspath{{images/}}
+
+\usepackage{tocloft}
+\renewcommand{\cfttoctitlefont}{\relax}
+\renewcommand{\cftaftertoctitle}{\relax}
+\renewcommand{\contentsname}{}
+
+\usepackage{accents}
+
+\newcommand*{\dt}[1]{
+  \accentset{\mbox{\bfseries .}}{#1}}
+\newcommand*{\ddt}[1]{%
+  \accentset{\mbox{\bfseries .\hspace{-0.05ex}.}}{#1}}
+
+\usepackage{mathptmx}
+\usepackage{tgtermes}
+
+\renewcommand{\baselinestretch}{1.2}
+
+\usepackage{parskip}
+
+\newcommand{\extended}[1]{\overleftrightarrow{#1}}
+\newcommand{\rightray}[1]{\overrightarrow{#1}}
+\newcommand{\horizontal}{
+\begin{center}
+\line(1,0){400}
+\end{center}
+}
+
+\newcommand{\str}[1]{\mathtt{#1}}
+
+\DeclareMathOperator{\lcm}{lcm}
+\DeclareMathOperator{\im}{im}
+\DeclareMathOperator{\Stab}{Stab}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Real}{Re}
+
+\newenvironment{problem}{\noindent \color[HTML]{9F54A1} \textbf{Problem.}}{\color{black}}
+
+\newenvironment{solution}{
+\color[HTML]{BA8ABE}
+\textit{Solution:}}
+{
+\color{black}
+}
+
+\newenvironment{solution*}{
+\color[HTML]{BA8ABE}
+\textit{Solution:}}
+{
+\color{black}
+\vspace{-0.6cm}
+}
+
+\newenvironment{theorem}[1]{\noindent \color[HTML]{483393} \textbf{Theorem. (#1) }}{\color{black}}
+
+\newenvironment{prove}{\noindent \textbf{Prove.}}{}
+
+\newenvironment{define}{\noindent \textbf{Define.}}{}
+
+\newenvironment{proof}{
+\color[HTML]{7E6FB1}
+\textit{Proof:}}
+{
+\color{black}
+}
+
+\newenvironment{proof*}{
+\color[HTML]{7E6FB1}
+\textit{Proof:}}
+{
+\color{black}
+\vspace{-0.6cm}
+}
+
+\newenvironment{remark}{\color[HTML]{909090}
+\textbf{Remark.} }{\color{black}
+}
+
+\makeatletter
+\newenvironment{boxed-text}[1][36em]
+{%
+  \begin{center}
+  \setlength{\fboxsep}{10pt}%
+  \begin{lrbox}{\@tempboxa}%
+    \begin{minipage}{#1}
+      \vspace{0.1cm}
+      \begin{center}
+}
+{%
+      \end{center}
+      \vspace{0.1cm}
+    \end{minipage}
+  \end{lrbox}%
+  \fbox{\usebox{\@tempboxa}}%
+  \end{center}
+  \vspace{0.1cm}
+}
+\makeatother
+
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+            \node[shape=circle,draw,inner sep=2pt] (char) {#1};}}

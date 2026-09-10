@@ -293,7 +293,7 @@ export function resolveXcolorName(name: string): string | undefined {
 }
 
 function looksLikeMath(body: string): boolean {
-  if (/\\(over|frac|hat|dot|vec|mathbb|mathfrak|operatorname|accentset)/.test(body)) {
+  if (/\\(over|frac|hat|dot|vec|math[a-z]+|operatorname|accentset)/.test(body)) {
     return true;
   }
   if (/[\^_]/.test(body) && !/\\textbf|\\textit|\\emph/.test(body)) {

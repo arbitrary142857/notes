@@ -94,6 +94,24 @@ export const COURSES: Course[] = [
       Notes taken through Lecture 1 of ??.
     `,
   },
+  {
+    id: "6.7960",
+    title: "6.7960",
+    subtitle: "Deep Learning",
+    semester: "🍂 Fall 2026",
+    summary: `
+      Notes taken through Lecture 1 of ??.
+    `,
+  },
+  {
+    id: "18.404",
+    title: "18.404",
+    subtitle: "Theory of Computation",
+    semester: "🍂 Fall 2026",
+    summary: `
+      Notes taken through Lecture 1 of ??.
+    `,
+  },
 ];
 
 export function courseDir(root: string, courseId: string): string {
