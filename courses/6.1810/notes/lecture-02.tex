@@ -1,0 +1,311 @@
+\lecture{2}
+\title{C in xv6}
+
+\begin{document}
+
+\subsection{Pre-Lecture Reading}
+
+In C, a number written with a leading zero
+is assumed to be in octal.  For example,
+\verb|0177| equals \verb|127| in decimal.
+\begin{itemize}
+    \item More generally,
+    a prefix of \verb|0x| indicates hexadecimal,
+    and a prefix of \verb|0b| indicates binary.
+    \item To zero out the last six bits of \verb|x|,
+    one might write \verb|x = x & ~077|,
+    where \verb|~| is the one's complement.
+    \item To extract \verb|n| bits from \verb|x|,
+    the highest at position \verb|p|, one might write the following function:
+\begin{verbatim}[c]
+unsigned getbits(unsigned x, int p, int n)
+{
+    return (x >> (p+1-n)) & ~(~0 << n);
+}
+\end{verbatim}
+    Note, in particular, that \verb|~(~0 << n)|
+    produces an \verb|n|-bit string with only \verb|1|s.
+\end{itemize}
+We now provide examples of nontrivial idiomatic conventions in C.
+\begin{verbatim}[c]
+*p++ = val;     /* push val onto stack */
+val = *--p;     /* pop top of stack into val */
+\end{verbatim}
+Here, \verb|p| always points to the empty space in a stack.
+Notice how \verb|++| and \verb|--| act as both
+\emph{postfix} and \emph{prefix} operators.
+
+\begin{verbatim}[c]
+void strcpy(char *s, char *t)
+{
+    while (*s++ = *t++)
+        ;
+}
+\end{verbatim}
+Here, note that \verb|*s = *t| returns \verb|*t|,
+so the loop ends when \verb|*t == \0| because \verb|\0| is false-y.
+
+What makes C good as a programming language
+is that there is no work done in ``runtime'';
+whereas code written in Python and JavaScript requires
+nontrivial effort to compile into machine code,
+code written in C maps almost directly into assembly.
+
+\subsection{Process Memory and Compilation}
+
+When a process is run, the process memory looks like
+(from \verb|0x000...| to \verb|0xfff...|).
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-02/process-memory}}
+\end{center}
+Recall that memory in the stack is managed by the stack pointer
+(e.g., \verb|ld a0, 8(sp)|),
+whereas memory in the heap is managed by explicit calls
+(e.g., \verb|malloc|).
+
+Consider, in xv6, the following command:
+\begin{verbatim}
+make user/_cat
+\end{verbatim}
+The effect of this command is
+to compile the source code in the C file \verb|user/cat.c|
+into a binary (executable) file \verb|user/_cat|.
+
+There is a compiler \verb|cc| that can compile C files like
+\verb|user/cat.c| into \textbf{object files} like \verb|user/cat.o|.
+Object files are plain binary---so \verb|cat user/cat.o| will output
+unreadable non-ASCII garbage.  Any object file contains the following:
+\begin{itemize}
+    \item \verb|.text| Assembly instructions written in binary.
+    \item \verb|.data| Initialized global variables declared
+    outside of the scope of \verb|main|.
+    \item \verb|.bss| Uninitialized global variables
+    (not stored as data, but rather an indication of size needed).
+    \item \dots a bunch of other stuff \dots
+\end{itemize}
+Consider the following C file, for example.
+\begin{verbatim}[c]
+#include "user/user.h"        // (1)
+
+int mode = 5;                 // (2)
+char buf[64];                 // (3)
+
+int main(void) {              // (4)
+  printf("mode=%d\n", mode);  // (5)
+  exit(0);                    // (6)
+}
+\end{verbatim}
+Then lines \verb|(4-6)| contribute to \verb|.text|,
+line \verb|(2)| contributes to \verb|.data|,
+and line \verb|(3)| contributes to \verb|.bss|.
+(Meanwhile, line \verb|(1)| is only relevant to
+the compiler \verb|cc| and has no impact on
+the content of the object file itself.)
+
+It isn't just \verb|user/cat.c| that needs to be compiled;
+the code in \verb|user/cat.c| also relies on these four object files:
+\begin{verbatim}
+ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+\end{verbatim}
+The \verb|make| command knows these files are relevant
+because \verb|Makefile| contains the above line, verbatim.
+(All four object files are also the results of
+compiling their respective source files via \verb|cc|.)
+
+Finally, a \textbf{linker} \verb|ld| takes all five object files
+and merges them into a single binary (executable) file \verb|user/_cat|.
+
+There's just a little more work to do.
+When typing \verb|cat| into the xv6 shell,
+only the binary present in \verb|fs.img| gets executed---none
+of the files in \verb|user/| get acknowledged at all!
+Here's how we get the binary \verb|user/_cat| into \verb|fs.img|.
+\begin{verbatim}
+make user/_cat  # create (or update) files user/cat.o and user/_cat
+make fs.img     # add the binary user/_cat to fs.img
+make qemu       # boot up the xv6 kernel
+$ cat           # runs cat
+...
+\end{verbatim}
+Note that the commands \verb|make user/_cat| and \verb|make fs.img|
+are technically optional;
+when running \verb|make qemu|, the binary contents of \verb|fs.img|
+are automatically updated accordingly.
+
+\begin{remark}
+    Object files (e.g., \verb|user/cat.o|)
+    and binary files (e.g., \verb|user/_cat|)
+    both fall under the broad category of \textbf{ELF files},
+    which includes object files, executables,
+    shared libraries, and core dumps.
+\end{remark}
+
+\subsection{C Examples: Pointers, Structs, Arrays, Strings}
+
+Here's a simple example to demonstrate pointers in use.
+
+\begin{verbatim}[c]
+int i = 0x12345678;     // stored as four bytes, in the order 78, 56, 34, 12 (little-endian)
+int *p = &i;
+char *cp = (char *)p;   // `char` is equivalent to `byte` in C
+printf("%x", *cp);      // prints 78, not 12
+\end{verbatim}
+
+There are two distinctions between pointers of type
+\verb|char*| and \verb|int*| to be aware of:
+\begin{itemize}
+    \item Because \verb|cp| is of type \verb|char*|,
+    dereferencing \verb|cp| returns only one byte (a \verb|char|),
+    rather than all four bytes of an \verb|int|.
+    \item Incrementing \verb|cp++| would increase \verb|cp| by 1 byte,
+    whereas incrementing \verb|p++| would increase \verb|p| by 4 bytes.
+    \begin{itemize}
+        \item The stack can't see type; it sees all pointers as
+        plain 8-byte blocks in memory.
+        \item It is the \emph{compiler} that can read types
+        and realize (in its assembly compilation) that
+        \verb|cp| and \verb|p| increment differently.
+    \end{itemize}
+\end{itemize}
+
+Here's a more complicated example of pointers in use.
+
+\begin{verbatim}[c]
+int g = 3;
+
+int
+main(int ac, char **av)
+{
+    int l = 5;  // local variables don't have a default value
+
+    // reading the address of global and local variables
+    int *p, *q;
+    p = &g;
+    q = &l;
+    printf("p %p q %p\n", p, q); // p 0x...01000 q 0x...03FAC
+
+    // reassigning variables using pointers
+    *p = 11;
+    *q = 13;
+    printf("g %d l %d\n", g, l); // g 11 l 13
+
+    // structs
+    struct two {
+        int a;
+        int b;
+    } s;
+    s.a = 10;
+    struct two *ptr = &s;
+    printf("%d %d\n", s.a, ptr->a); // 10 10
+
+    // make a pointer to a pointer
+    int **pp;
+    pp = &p;
+    printf("pp %p %p %d\n", pp, *pp, **pp); // pp 0x...03FA0 0x...01000 11
+
+    // make a pointer to code
+    int (*f)(int, char **);
+    f = &main;
+    printf("main: %p\n", f); // main: 0x...092
+
+    // make a pointer to a function in a different file (user/ulib.c)
+    int (*g)(int, char **);
+    extern void start(void);
+    g = (void*) &start;
+    printf("main: %p\n", g); // 0x...09A
+    exit(0);
+}
+\end{verbatim}
+
+Notice how the pointer \verb|0x...01000| to \verb|g|
+is much smaller than the pointer \verb|0x...03FAC| to \verb|l|.
+This is because \verb|g| is a global variable
+and lives in the data section of process memory,
+whereas \verb|l| is a local variable and lives in the stack.
+
+Also, notice how data is added to the stack by moving \emph{downward};
+the variable \verb|p| has a \emph{lower} address than \verb|l|,
+because \verb|p| was declared \emph{after} \verb|l| was.
+
+Here's how pointers are used to work with arrays in C.
+
+\begin{verbatim}[c]
+int a[3] = {1, 2, 3};
+char b[3] = {'a', 'b', 'c'};
+
+int
+main(int ac, char **av)
+{
+    printf("%d\n", a[0]); // 1
+    
+    a[1] += 1;
+    *(a + 2) = 5;
+    printf("%d %d\n", a[1], a[2]); // 3 5
+
+    printf("a %p b %p", a, b); // a 0x...01010 b 0x...01000
+    exit(0);
+}
+\end{verbatim}
+
+Here's an example of strings in C.
+Recall that strings are arrays of characters that end in
+the \textbf{zero byte} given by \verb|\0|.
+
+\begin{verbatim}[c]
+char *s = "123";
+
+int
+main(int ac, char **av)
+{
+    char s1[4] = {'1', '2', '3', '\0'};
+    printf("s %s s1 %s\n", s, s1); // s 123 s1 123
+
+    // accessing arrays
+    printf("%c %c\n", s[0], *s); // 1 1
+    printf("%c %c\n", s[2], *(s + 2)); // 3 3
+
+    // reading beyond string end (DON'T DO THIS)
+    printf("%d %p %p\n", s1[4], s1, &s1[4]); // 0 0x...03FA8 0x...03FAC
+    s1[4] = 'D'; // might be benign, might not
+    exit(0);
+}
+\end{verbatim}
+
+Even though data is added to the stack moving \emph{downward},
+notice how \verb|s1| has a \emph{lower} address than \verb|s1[4]|,
+even though \verb|s1| comes \emph{before} \verb|s1[4]| in the array.
+The elements in a single array are stored in ascending address order,
+but arrays declared one after another are stored in descending address order.
+
+(This is required, in a sense, in order for \verb|&s1[4] == s1 + 4| to be true.)
+
+Finally, here's the C code given in the pre-lecture homework,
+along with the output when \verb|h| is \verb|0x...01000|.
+
+\begin{verbatim}[c]
+struct f {
+  int a;
+  char b[32];
+};
+
+struct g {
+  char *c;
+  int d[4];
+};
+
+struct h {
+  struct f *f;
+  struct g g;
+};
+
+struct h *h;
+
+printf("%p\n", &h->g.d[2]);     // 0x...01018
+printf("%p\n", &h->f->a);       // 0x...00000
+printf("%p\n", &h->g.c);        // 0x...01008
+printf("%p\n", &h->g.c[10]);    // 0x...0000A
+\end{verbatim}
+The first and third are determined by \verb|h| alone;
+the second and fourth are not.
+
+\end{document}

@@ -1,0 +1,80 @@
+\lecture{2}
+\title{Learning-Based Approaches to Robotics}
+
+\begin{document}
+
+\subsection{Has AI Solved Robotics?}
+
+As spoken about on
+\href{https://x.com/chooi_jeq/status/2096064315115839904}{X},
+GPT-6 Astra scored 95\% on a robot control task
+in which robots are tasked to, e.g.,
+``Pick up the red block from the table
+and place it inside this bowl.''
+
+In essence, we have these \textbf{Omni models}
+that are currently capable of taking
+audio, text, image, and video inputs
+and producing audio, text, image, and video outputs.
+The current trend is to add robotics to these lists.
+
+\textbf{Question:}
+If AI is solving robotics, then why get into robotics at all?
+\begin{itemize}
+    \item There is limitless potential for impact,
+    and the state of the art is moving fast in \emph{every} field.
+    \item Hardware can't scale (quite) as fast as software.
+    \begin{itemize}
+        \item (But exponentials can still happen\dots
+        consider robots building robots, for example.)
+    \end{itemize}
+    \item In general, the gap between ``vibe coder'' and ``expert''
+    is still nontrivially large.
+\end{itemize}
+
+\subsection{Reinforcement Learning}
+
+One way to train robots is \textbf{reinforcement learning (RL)},
+which consists of the following steps.
+\begin{enumerate}
+    \item Make a simulator.
+    \item Define and write a reward function.
+    \item Take gradients for optimization.
+    \item Deploy in the real world.
+\end{enumerate}
+One downside of RL is that it requires a simulator, because:
+\begin{itemize}
+    \item It's much safer and more convenient to implement.
+    \item It's much easier to define and compute a reward function
+    (because the full state is perfectly known).
+\end{itemize}
+Another downside of RL is that it requires fine-tuning
+the reward function, because \emph{``misalignment''}.
+
+\subsection{Behavior Cloning}
+
+Another way to train robots is \textbf{behavior cloning}---the point being
+that humans do things pretty well, so we should just
+demonstrate to robots what humans would do.
+
+This can be done via \emph{teleoperation}.
+Training becomes a supervised-learning objective;
+no simulation or reward function required.
+
+Naturally, one might also consider \emph{imitation-guided RL},
+which may possibly yield ``superhuman'' performance.
+
+\subsection{Training in Practice}
+
+For \emph{single-task learning},
+one usually uses roughly 200 human demonstrations
+to produce a map from image readings into actions (visuomotor policy).
+For \emph{multitask behavior cloning},
+one usually uses a lot of robot and internet data
+to produce a \emph{language-conditioned} visuomotor policy.
+
+\begin{remark}
+    And then some more things were said.
+\end{remark}
+
+\end{document}

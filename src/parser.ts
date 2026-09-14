@@ -16,9 +16,11 @@ import {
   findUnescaped,
   extractBracedCommand,
   isInsideInlineMath,
+  literalSpanEnd,
   readBraced,
   readOptionalBracket,
   readSquareBracket,
+  readVerb,
 } from "./tex-read.js";
 
 export interface SubsectionEntry {
@@ -270,31 +272,11 @@ function stripComments(source: string): string {
   let i = 0;
 
   while (i < source.length) {
-    const verbatimBegin = source.slice(i).match(/^\\begin\{(verbatim\*?|html)\}/);
-    if (verbatimBegin) {
-      const env = verbatimBegin[1];
-      const beginLen = verbatimBegin[0].length;
-      const blockStart = i;
-      const innerEnd = findVerbatimEnvironmentEnd(source, env, i + beginLen);
-      if (innerEnd === -1) {
-        out += source[i];
-        i++;
-        continue;
-      }
-      const end = innerEnd + `\\end{${env}}`.length;
-      out += source.slice(blockStart, end);
-      i = end;
+    const literalEnd = literalSpanEnd(source, i);
+    if (literalEnd !== -1) {
+      out += source.slice(i, literalEnd);
+      i = literalEnd;
       continue;
-    }
-
-    if (source.startsWith("\\verb", i)) {
-      const verbStart = i + "\\verb".length;
-      const verb = readVerb(source, source[verbStart] === "*" ? verbStart + 1 : verbStart);
-      if (verb) {
-        out += source.slice(i, verb.end);
-        i = verb.end;
-        continue;
-      }
     }
 
     if (source[i] === "%" && (i === 0 || source[i - 1] !== "\\")) {
@@ -574,32 +556,6 @@ function renderVerbatim(content: string, language = ""): string {
     }
   }
   return `<pre class="verbatim"><code>${escapeText(content)}</code></pre>`;
-}
-
-/** Read `\verb<delim>...<delim>`, with an optional `[language]` before the delimiter. */
-function readVerb(
-  input: string,
-  start: number,
-): { content: string; language: string; end: number } | null {
-  let i = start;
-  let language = "";
-
-  const optional = readOptionalBracket(input, i);
-  if (optional) {
-    language = optional.content.trim();
-    i = optional.end;
-  }
-
-  const delimiter = input[i];
-  if (!delimiter || /[a-zA-Z0-9\s*]/.test(delimiter)) return null;
-
-  const close = input.indexOf(delimiter, i + 1);
-  if (close === -1) return null;
-
-  const content = input.slice(i + 1, close);
-  if (content.includes("\n")) return null;
-
-  return { content, language, end: close + 1 };
 }
 
 function renderInlineCode(content: string, language = ""): string {

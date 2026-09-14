@@ -57,6 +57,32 @@ export function readSquareBracket(input: string, start: number): Braced | null {
   return null;
 }
 
+/** Read `\verb<delim>...<delim>`, with an optional `[language]` before the delimiter. */
+export function readVerb(
+  input: string,
+  start: number,
+): { content: string; language: string; end: number } | null {
+  let i = start;
+  let language = "";
+
+  const optional = readOptionalBracket(input, i);
+  if (optional) {
+    language = optional.content.trim();
+    i = optional.end;
+  }
+
+  const delimiter = input[i];
+  if (!delimiter || /[a-zA-Z0-9\s*]/.test(delimiter)) return null;
+
+  const close = input.indexOf(delimiter, i + 1);
+  if (close === -1) return null;
+
+  const content = input.slice(i + 1, close);
+  if (content.includes("\n")) return null;
+
+  return { content, language, end: close + 1 };
+}
+
 /** Find `\end{env}` for verbatim-like environments (content is literal). */
 export function findVerbatimEnvironmentEnd(
   input: string,
@@ -75,6 +101,28 @@ export function findVerbatimEnvironmentEnd(
     if (/^\s*$/.test(before)) return idx;
 
     i = idx + endTag.length;
+  }
+
+  return -1;
+}
+
+/**
+ * End of the verbatim/html environment or `\verb` snippet starting at `start`, or -1 if
+ * none starts there. Their content is literal, so scanners must step over it whole.
+ */
+export function literalSpanEnd(input: string, start: number): number {
+  if (input[start] !== "\\") return -1;
+
+  const env = input.slice(start).match(/^\\begin\{(verbatim\*?|html)\}/);
+  if (env) {
+    const innerEnd = findVerbatimEnvironmentEnd(input, env[1], start + env[0].length);
+    return innerEnd === -1 ? -1 : innerEnd + `\\end{${env[1]}}`.length;
+  }
+
+  if (input.startsWith("\\verb", start)) {
+    const after = start + "\\verb".length;
+    const verb = readVerb(input, input[after] === "*" ? after + 1 : after);
+    return verb ? verb.end : -1;
   }
 
   return -1;
@@ -183,11 +231,16 @@ export function findInlineMathEnd(input: string, from: number): number {
   return -1;
 }
 
-/** True when `pos` lies inside unescaped `$...$` (not `$$`). */
+/** True when `pos` lies inside unescaped `$...$` (not `$$`). A `$` in verbatim or `\verb` is literal. */
 export function isInsideInlineMath(input: string, pos: number): boolean {
   let inMath = false;
   let i = 0;
   while (i < pos) {
+    const literalEnd = literalSpanEnd(input, i);
+    if (literalEnd !== -1) {
+      i = literalEnd;
+      continue;
+    }
     if (input[i] === "\\") {
       i += 2;
       continue;

@@ -67,6 +67,7 @@ These take arguments, just like any other function call.
     \item \verb[c]|write(fd, buf, size)|
     writes \verb[c]|size| bytes from \verb[c]|buf|
     to the file with file descriptor \verb[c]|fd|.
+    It returns the number of bytes successfully written.
     \item The kernel contains, for each process,
     a table that maps file descriptors to files.
     A single file descriptor can refer to different files
