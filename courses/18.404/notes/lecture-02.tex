@@ -1,0 +1,116 @@
+\lecture{2}
+\title{Nondeterminism, Closure Properties, Regular Expressions}
+
+\begin{document}
+
+\subsection{Nondeterministic Finite Automata}
+
+We first introduce a new variant of finite automata:
+the \textbf{nondeterministic finite automata} (or \textbf{NFA}).
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-02/NFA-example}}
+\end{center}
+In spirit, it's a finite automaton that allows processes to fork;
+if \emph{any} process ends at an accept state,
+the automaton accepts.
+
+\textbf{Definition.}
+A nondeterministic finite automaton
+is a finite automaton with the following alterations:
+\begin{itemize}
+    \item A state can have multiple outward edges
+    with the same label.
+    \item An outward edge can have the empty string $\epsilon$
+    as a label.  (Traversing such an edge is free.)
+\end{itemize}
+Formally, the distinction is simply that
+the transition function is now
+$\delta \colon Q \times \Sigma_{\epsilon} \to \mathcal{P}(Q)$
+(where $\Sigma_{\epsilon} := \Sigma \cup \{\epsilon\}$).
+
+\begin{remark}
+    There's an \textcolor{purple}{\emph{important}} note
+    about both NFAs and DFAs that should be explained explicitly now.
+    
+    Sometimes, you might read in a character \str{c}
+    while at a state with no outgoing edge with label \str{c}.
+    In such a case, you go to a \textbf{dead state},
+    meaning the string is automatically rejected.
+
+    This is true even if the state you are at
+    is the accept state.
+    It is because of this that \str{aaaa} is a regular language,
+    for example.
+\end{remark}
+
+\textbf{Example.}
+In the example above:
+\begin{itemize}
+    \item If $M$ reads in \str{aba},
+    then the end state could be any of $\{q_1, q_2, q_4, \textsc{Dead}\}$.
+    Since $q_4$ is an accept state, $M$ accepts \str{aba}.
+    \item If $M$ reads in \str{bbbbbaaaaaaa},
+    then the end state could be any of $\{q_1, q_2, \textsc{Dead}\}$.
+    So $M$ rejects \str{bbbbbaaaaaaa}.
+    \item If $M$ reads in \str{aaabbb},
+    then the end state could be any of $\{q_1, \textsc{Dead}\}$.
+    So $M$ rejects \str{aaabbb}.
+\end{itemize}
+
+It turns out, very importantly,
+that NFAs and DFAs are just different expressions of \emph{the same thing}.
+
+\begin{theorem}{NFA Implies DFA}
+    A language $A$ is recognized by some DFA
+    if and only if $A$ is recognized by some NFA.
+\end{theorem}
+
+\begin{proof}
+    If $A$ is recognized by some DFA $M$,
+    then $A$ is recognized by the same FA $M$
+    if interpreted as an NFA.
+
+    Meanwhile, if $A$ is recognized by some NFA $N$,
+    then we can design a DFA $M$ that recognizes $A$
+    by taking $M$ to hold one state
+    for each subset of the set of states of $N$.
+    Details omitted; it's not very nontrivial. ~ $\blacksquare$
+\end{proof}
+
+So although it \emph{feels} that nondeterminism allows for
+more generality than determinism\dots
+it actually changes nothing!
+The upshot, of course, is that in a lot of contexts,
+NFAs are much easier to construct than DFAs.
+
+\subsection{Regular Expressions are Regular Languages}
+
+To demonstrate the strength of NFAs,
+we'll now use them to prove the following theorem.
+
+\begin{theorem}{Regularness}
+    Every regular expression is a regular language.
+\end{theorem}
+
+It suffices to prove the closure of regular languages
+under union, concatenation, and star.
+NFAs do this pretty easily.
+
+\begin{center}
+    \frame{\includegraphics[width=0.3\textwidth]{lecture-02/union-proof}}
+    \emph{(Union Proof)}
+\end{center}
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-02/concat-proof}}
+    \emph{(Concatenation Proof)}
+\end{center}
+
+\begin{center}
+    \frame{\includegraphics[width=0.3\textwidth]{lecture-02/star-proof}}
+    \emph{(Star Proof)}
+\end{center}
+
+And that's all for today.
+
+\end{document}

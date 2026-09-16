@@ -1,0 +1,155 @@
+\lecture{2}
+\title{How to Train a Neural Net}
+
+\begin{document}
+
+\subsection{Gradient-Based Optimization}
+
+Gradient descent isn't the only gradient-based optimization algorithm.
+Even if we can compute the gradient $\mathbf{g} = \nabla_{\theta} J(\theta)$
+of a neural net, what should we do with it to best minimize the objective?
+\[ \theta^{k + 1} \gets \theta^k + \eta \cdot \textsc{Update}(\mathbf{g}) \]
+In general, any optimization algorithm must effectively define
+the following two things.
+\begin{itemize}
+    \item A \textbf{surrogate}---a
+    local approximation of the loss function.
+    \begin{itemize}
+        \item \emph{Example.}
+        We might take a first-degree Taylor approximation of the loss.
+    \end{itemize}
+    \item A \textbf{trust region}---a
+    region in which the surrogate is trustable.
+    \begin{itemize}
+        \item \emph{Example.}
+        We might take the trust region to be
+        a $\lambda$-radius ball.
+    \end{itemize}
+\end{itemize}
+If we use the two examples given above,
+we get exactly gradient descent:
+\[ \argmin_{\|\Delta \mathbf{w}\|_2 \le \lambda}
+\mathbf{g}^{\top}\Delta \mathbf{w}
+= -\lambda \cdot \frac{\mathbf{g}}{\|\mathbf{g}\|_2}. \]
+But we can also generalize---if
+we take the trust region to be a $\lambda$-radius \emph{square},
+we get a different optimizer.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-02/sign-descent}}
+\end{center}
+This optimizer is called \textbf{sign descent} because
+the minimizer looks like this:
+\[ \argmin_{\|\Delta \mathbf{w}\|_{\infty} \le \lambda}
+\mathbf{g}^{\top}\Delta \mathbf{w}
+= -\lambda \cdot \mathrm{sign}(\mathbf{g}). \]
+We can also set the trust region using the
+\textbf{spectral norm} of the weight update,
+which produces \textbf{spectral descent}.
+\[ \argmin_{\|\Delta W\|_{\mathrm{op}} \le \lambda}
+\langle G, \Delta W \rangle
+= -\lambda \cdot UV^{\top}
+~~~ \text{ where } ~~~
+G = U\Sigma V^{\top}. \]
+\begin{remark}
+    Lecture did not give any elaboration on
+    what spectral descent is.
+    In short, the spectral norm of a matrix
+    is its largest \emph{singular} value
+    (see \href{/18.701/lectures/19/}{Lecture 19} of 18.701),
+    so $-\lambda \cdot UV^{\top}$ is just $-G$
+    with every singular value flattened to $\lambda$.
+\end{remark}
+
+\subsection{Bells and Whistles}
+
+It turns out that sign descent and spectral descent
+(with \emph{bells and whistles}) both yield
+commonly-used descent methods.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-02/descents.png}}
+\end{center}
+\textbf{Stochasticity.}
+The gradient is computed by averaging across
+only a subset of the data.
+\begin{itemize}
+    \item Advantages:
+    It's much cheaper,
+    and the noise of the stochasticity
+    serves as an implicit regularizer.
+    \item Disadvantages:
+    Higher variance due to gradient approximation.
+\end{itemize}
+\textbf{Momentum.}
+Say the gradient steps are biased
+to continue in the direction of the previous update.
+\[ \theta^{t + 1} \gets \theta^t - \eta \nabla f(\theta^{t})
++ \alpha \cdot m^t
+~~~ \text{ where } ~~~
+m^t = \theta^t - \theta^{t - 1} \text{ is the previous update.} \]
+Expectedly, the constant $\alpha$ needs to be tuned carefully,
+or else advantages may become disadvantages.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-02/momentum.png}}
+\end{center}
+
+\subsection{Gradient Difficulties}
+
+Some functions are easier to optimize than others.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-02/hard-optimize.png}}
+\end{center}
+Note that even though most of these functions are not differentiable,
+they all have gradients in PyTorch.
+Even then, though, PyTorch cannot find a global minimum
+when there are vanishing gradients, exploding gradients, or local minima.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-02/exploding-gradient.png}}
+\end{center}
+One fix is to use \textbf{gradient clipping}:
+if gradients exceed a magnitude $M$,
+scale them to have magnitude $M$.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-02/exploding-fix.png}}
+\end{center}
+Another fix is to choose a direction not by computing the gradient,
+but by considering small perturbations of $\theta$ in all directions
+and moving in the direction of lower loss.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-02/vanishing-fix.png}}
+\end{center}
+
+\subsection{Backpropagation}
+
+See \href{/6.790/lectures/13}{Lecture 13} of 6.790
+for an explanation of backpropagation
+specifically when each layer's computation
+$f(\mathbf{x}_{\mathrm{in}}, \theta)$
+is a linear layer plus an activation.
+We give a more general description here.
+(Below, $\theta$ and $\mathbf{W}$ are synonymous.)
+\begin{center}
+    \frame{\includegraphics[width=0.3\textwidth]{lecture-02/backpropagation.png}}
+\end{center}
+Notably, for linear layers we have
+$f(\mathbf{x}_{\mathrm{in}}, \mathbf{W}) = \mathbf{W}\mathbf{x}_{\mathrm{in}}$,
+so it follows that $\mathbf{L}^{\mathbf{x}} = \mathbf{W}$
+and $\mathbf{L}^{\theta} = \mathbf{x}_{\mathrm{in}}$.
+So backprop is easy.
+
+In practice, not all layers are linear, of course.
+For example,
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-02/backprop-example.png}}
+\end{center}
+But the nonlinear layers like \verb|relu| are also easy to deal with---relu's
+Jacobian $\mathbf{L}^{\mathbf{x}}$ is diagonal.
+
+And of course, all of this is compatible with
+more general features of DAGs, like merges and branches.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-02/DAG-features.png}}
+\end{center}
+Note that \emph{parameter sharing} (used in CNNs, e.g.)
+is just a variant of branching.
+
+\end{document}
