@@ -68,25 +68,25 @@ We'll just cut straight to the punchline this time.
     in the limit $N \to \infty$.  ~ $\blacksquare$
 \end{proof}
 
-\begin{remark}
-    Given a DT signal $f[n]$, consider the ``staircase'' CT signal $g(t) := f[\lfloor t \rfloor]$.
-    Then the following claim (perhaps surprisingly!) is false.
-    \begin{quote}
-        \textbf{False Claim.} The CT Fourier transform $G(\omega)$ of $g(t)$ is the same as
-        the DT Fourier transform $F(\Omega)$ of $f[n]$.
-    \end{quote}
-    To see why this claim fails, compute $G(\omega)$ one staircase step at a time:
-    \[ G(\omega) = \sum_{n = -\infty}^{\infty} f[n] \int_{n}^{n + 1} e^{-j \omega t} \, \mathrm{d}t
-    = \sum_{n = -\infty}^{\infty} f[n] e^{-j \omega n} \left[ \frac{1 - e^{-j\omega}}{j\omega} \right]
-    = F(\Omega) \left[ \frac{1 - e^{-j\omega}}{j\omega} \right].
-    ~~~~~ (\Omega :=: \omega) \]
-    So the CTFT $G(\omega)$ is the DTFT $F(\Omega)$ \emph{times} an extra decay factor of
-    $\left[\frac{1 - e^{-j\omega}}{j\omega}\right]$.
+% \begin{remark}
+%     Given a DT signal $f[n]$, consider the ``staircase'' CT signal $g(t) := f[\lfloor t \rfloor]$.
+%     Then the following claim (perhaps surprisingly!) is false.
+%     \begin{quote}
+%         \textbf{False Claim.} The CT Fourier transform $G(\omega)$ of $g(t)$ is the same as
+%         the DT Fourier transform $F(\Omega)$ of $f[n]$.
+%     \end{quote}
+%     To see why this claim fails, compute $G(\omega)$ one staircase step at a time:
+%     \[ G(\omega) = \sum_{n = -\infty}^{\infty} f[n] \int_{n}^{n + 1} e^{-j \omega t} \, \mathrm{d}t
+%     = \sum_{n = -\infty}^{\infty} f[n] e^{-j \omega n} \left[ \frac{1 - e^{-j\omega}}{j\omega} \right]
+%     = F(\Omega) \left[ \frac{1 - e^{-j\omega}}{j\omega} \right].
+%     ~~~~~ (\Omega :=: \omega) \]
+%     So the CTFT $G(\omega)$ is the DTFT $F(\Omega)$ \emph{times} an extra decay factor of
+%     $\left[\frac{1 - e^{-j\omega}}{j\omega}\right]$.
 
-    This factor is also why the synthesis equations differ:
-    the CTFT $G(\omega)$ decays, so it's aperiodic and thus synthesized by $\int_{-\infty}^{\infty}$.
-    In contrast, $F(\Omega)$ is $2\pi$-periodic and thus synthesized by $\int_0^{2\pi}$.
-\end{remark}
+%     This factor is also why the synthesis equations differ:
+%     the CTFT $G(\omega)$ decays, so it's aperiodic and thus synthesized by $\int_{-\infty}^{\infty}$.
+%     In contrast, $F(\Omega)$ is $2\pi$-periodic and thus synthesized by $\int_0^{2\pi}$.
+% \end{remark}
 
 \begin{problem}
     Compute the DT Fourier transform of the following DT signal, where $S$ is a positive integer.
