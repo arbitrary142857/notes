@@ -86,15 +86,6 @@ export const COURSES: Course[] = [
     `,
   },
   {
-    id: "6.1810",
-    title: "6.1810",
-    subtitle: "Operating Systems Engineering",
-    semester: "🍂 Fall 2026",
-    summary: `
-      Notes taken through Lecture 1 of ??.
-    `,
-  },
-  {
     id: "6.7960",
     title: "6.7960",
     subtitle: "Deep Learning",

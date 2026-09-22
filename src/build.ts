@@ -218,7 +218,7 @@ for (const course of COURSES) {
  */
 const siteHomeDescription =
   "Student-written MIT lecture notes: 18.701, 6.1220, 6.300, " +
-  "18.650, 6.790, 6.4210, 6.1810, 6.7960, 18.404.";
+  "18.650, 6.790, 6.4210, 6.7960, 18.404.";
 assertHomeDescriptionNamesEveryCourse();
 writePage(join(distDir, "index.html"), SITE_META_TITLE, "", renderSiteHome(), {
   description: siteHomeDescription,

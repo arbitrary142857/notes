@@ -1,0 +1,286 @@
+\lecture{3}
+\title{OS Design}
+
+\begin{document}
+
+\subsection{Design Ideals}
+
+One of the main ideals of OS design is \textbf{isolation}.
+Without isolation, issues like these might arise:
+\begin{itemize}
+    \item Suppose both the shell \verb|sh| and the cat program \verb|cat|
+    have instructions that live in RAM.
+    
+    If \verb|sh| lives at address \verb|0x1000|,
+    then perhaps the \verb|cat| program can pipe
+    \verb|st 5, x1000| into the shell,
+    thereby writing over the instructions that make the shell work.
+    \item Or more simply,
+    maybe one application uses too much memory,
+    or hogs the CPU,
+    or writes into another process' memory.
+\end{itemize}
+
+Some additional things we need to consider:
+\begin{itemize}
+    \item Every program---whether it's \verb|cat| or \verb|sh|---uses
+    the same binary-file structure:
+    \verb|.text| instructions at \verb|x1000|,
+    followed by \verb|.data|, and so on.
+    How can so many processes all have a \verb|x1000|?
+    \item We need to implement some filesystem \verb|fs|
+    that offers us convenience in referring to
+    individual processes.
+    Instead of saying, ``run the process at \verb|x2000| in RAM'',
+    it would be nice to just say, ``run the process named \verb|cat|''.
+\end{itemize}
+In summary, the goal of the kernel designer
+is to make sure that no user application can mess with the kernel.
+
+\subsection{Hardware Support for Isolation}
+
+Here, we outline the main ideas of relevant bits of hardware.
+Future lectures will be dedicated to the implementation details.
+
+\textbf{Page Tables.}
+These translate virtual addresses into physical addresses.
+This resolves the issue of giving every process its own \verb|x1000|---that is,
+it gives every process its own memory.
+
+\textbf{Modes.}
+User applications (e.g., \verb|sh| or \verb|cat|) run in \textbf{user mode},
+whereas the CPU and RAM run in \textbf{kernel mode}.
+For example, modifying page tables should only be permitted in kernel mode.
+
+\textbf{Transitioning.}
+We need to be careful about transitioning between user mode and kernel mode.
+When \verb|sh| or \verb|cat| call \verb|fork|,
+it doesn't call \verb|fork| directly---instead, it calls
+\verb|ECALL 1|, where the number indicates which system call is being executed.
+
+When a user process calls \verb|ECALL|, it is \emph{not} a function calls---the
+sort of calls where you move \verb|sp|, do some stuff, and then \verb|ra| back.
+Instead, system calls are instructions to switch from user mode to kernel mode.
+Similarly, to switch from kernel mode to user mode,
+you run something called \verb|SRET|.
+
+\begin{remark}
+    Kernel mode is also sometimes called ``supervisor mode''.
+    They're the same thing.
+
+    We also user the terms ``user space'' and ``kernel space''
+    to refer to processes / hardware that run in
+    user mode or kernel mode.
+    CPUs and RAM live in kernel space,
+    whereas \verb|sh| and \verb|cat| live in user space.
+
+    The OS 
+\end{remark}
+
+Interestingly, it is very hard to implement all of these perfectly.
+The Linux kernel has roughly 40 million lines of code---and there are bugs.
+People take this very seriously;
+see \href{linuxcvetracker.com}{linuxcvetracker.com}.
+
+\subsection{Kernel Mode}
+
+A \textbf{monolothic OS} is an OS in which
+all core OS services run in kernel mode
+(including process scheduling, filesystems, e.g.).
+This is in contrast to a \textbf{microkernel},
+in which the bare minimum of OS services are in kernel mode
+(e.g., address spaces thread scheduling),
+whereas services like filesystems and network stacks
+run as user-mode processes.
+
+Some advantages:
+
+\textbf{Performance.}
+In a monolithic kernel,
+a filesystem calling a disk driver is just a function call.
+In a microkernel,
+a filesystem calling a disk driver
+involves 
+
+\textbf{Code Length.}
+
+\subsection{QEMU}
+
+Note that \verb|qemu| is just a software implementation of
+the RISC-V processor chip.
+This board has 4 RISC-V cores (CPUs),
+so if there are 8 processes,
+then you might multiplex those 8 processes across 4 CPUs.
+
+Even though we are interacting with software in this lab,
+we should imagine that our software implementations
+are just alterations to physical hardware on a RISC-V board.
+
+\subsection{TODO}
+
+The code for xv6 has most of its files organized into two directories:
+\verb|user| and \verb|kernel|.
+Since xv6 is a monolithic operating system,
+all of the OS design is in \verb|kernel|.
+
+\begin{remark}
+    Allegedly, we are supposed to be able to
+    read any line of the xv6 code
+    and be able to explain exactly what it is doing.
+\end{remark}
+
+We might see, for example:
+
+\begin{verbatim}
+$ ls kernel
+proc.c uart.c vm.c defs.h ...
+\end{verbatim}
+
+So each C file in the kernel implements a part of the OS
+(e.g., \verb|proc.c| implements process management).
+There are also header files;
+for example, \verb|defs.h| has all of the APIs for all of the other C files
+(e.g. processes, virtual memory, etc.).
+
+If you run \verb|make kernel/kernel|,
+this creates the assembly file \verb|kernel.asm|---that is,
+you build the build.
+The file \verb|kernel/kernel| is the compiled, linked xv6 kernel
+that contains all \verb|.c| and \verb|.S| code in kernel,
+combined into a single program.
+It's a 64-bit RISC-V ELF executable;
+it is the operating system.
+
+RUnning \verb|make qemu| loads the file
+into (emulated) RAM at address \verb|0x8000000|.
+RISC-V will then run (emulated) instructions
+starting at \verb|0x8000000|, and so on.
+
+You can also run \verb|make kernel/kernel|
+to compile each source file to a \verb|.o| file,
+then links using \verb|kernel.ld|,
+then generates \verb|kernel.asm| and \verb|kernel.sym|.
+But this is not necessary;
+running \verb|make qemu| recognizes the dependency on \verb|kernel/kernel|
+and rebuilds things on its own.
+Importantly, \verb|kernel.asm| and \verb|kernel.sym|
+are not actually used; they're plain-text (ASCII) files
+that exist solely for human debugging.
+
+\subsection{TODO}
+
+Note that \textbf{hart} is the exact same as \textbf{CPU} in RISC-V language.
+
+Note that \verb|kernel/entry.S| contains \verb|.global _entry|,
+which makes \verb|_entry| visible outside of \verb|entry.S|.
+The only thing that \verb|entry.S| does is set up a stack.
+
+The platform starts out as M mode (not supervisor mode),
+which is the \emph{minimal} amount of code needed to get the platform going;
+it says things like, if there's an interrupt, delegate to supervisor mode;
+it has very little code, and so we never enter M mode (machine mode).
+You can see this in \verb|start.c| in the kernel.
+
+To get from M mode to supervisor mode, you run \verb|MRET|
+(compare with \verb|SRET|).
+So the end of \verb|start.c| is
+\verb|asm volatile("mret");|.
+
+Now let's discuss \verb|kernel/main.c|.
+This sets up the device drivers (a bunch of \verb|init| files),
+some disc IO, some virtual memory stuff, etc.
+Notably, \verb|consoleinit();| is needed first;
+when you run \verb|make qemu|, you see some things printed to output,
+and this is because the line immediately after \verb|consoleinit();|
+is \verb|printkinit();|.
+
+Notably, only CPU 0 does the initialization code;
+there's an \verb|if (cpuid() == 0)| at the very top
+that ensures that initialization code is not run by multiple CPUs.
+
+\begin{remark}
+    It's called \verb|printk| because it's a kernel call.
+    Using \verb|printf| creates a system call (\verb|ecall||)
+    which traps into the kernel\dots but this only makes sense
+    for calling \verb|printf| in user space;
+    it would break if called in kernelspace.
+\end{remark}
+
+By looking at \verb|proc.h|, we can see what a process is.
+It contains a bunch of registers,
+a lock, a state, \dots not very much, actually,
+only 15 or so lines of code in a structure.
+The locks are there to coordinate how multiple CPUs
+coordinate; we'll talk about locks next week.
+There's also a \verb|pid| (the process ID),
+a pagetable, open file descriptors,
+the current working directory, and some other stuff.
+
+In the kernel, files are \verb|inode|s,
+because filesystem stuff.
+
+In the HW, we asked:
+\begin{itemize}
+    \item What happens if we call fork
+    but there's no procspace left because we're already running
+    the maximum number of processes?
+    \begin{itemize}
+        \item It raises an error.
+        Usually, fork calls \verb|allocproc|,
+        which\dots we'll see.
+    \end{itemize}
+    \item If you call exec,
+    it doesn't matter, because all exec does is
+    replace the current process' memory with new memory.
+    No new processes are needed, so it doesn't matter.
+\end{itemize}
+
+Every process in xv6 is created by fork except the very first one.
+When fork is run, \verb|forkret| is run,
+and this does some things,
+including building a process memory with
+\verb|.text| and \verb|.data| and so on,
+and returns to userspace
+by running \verb|kexec("/init", ...)|.
+
+So what does \verb|user/init.c| do?
+It sets up the environment for the shell to run.
+It also \verb|dup(0)| twice to create stdin,
+stdout, and stderr at descriptors 0, 1, and 2.
+It then runs \verb|fork()|
+to create a shell,
+and prints some text that you see every time you run \verb|make qemu|.
+
+Notably, register \verb|a7| is the one that
+acts as a parameter for \verb|ECALL|.
+We went from kernel mode to user mode
+and from init we went back to kernel mode.
+
+You can always modify the kernel too by putting printk statements
+and seeing what happens.
+
+With just one modification,
+we can see how modifying \verb|syscall|,
+that many, many system calls were necessary
+to initiate the shell alone,
+a lot of sys call 16s.
+There's a sys call 1 from the fork.
+The sys call 16s are from printing one character at a time
+(it prints s, t, a, r, t, \dots and each character
+is seen as a ssystem call).  Every character in a \verb|printf|
+is a system call, and we print a lot of characters,
+hence a lot of sys call 16s.
+
+ts cooked
+
+Main points:
+\begin{itemize}
+    \item KERNEL vs. USER space.
+    \item System calls!  They're a little bit more concrete, hopefully.
+    Useful in lab 2; we'll modify the syscall function, etc.
+    \item The rest of the semester is just
+    implementing the system calls,
+    because there's not that many of them.
+\end{itemize}
+
+\end{document}
