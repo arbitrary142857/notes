@@ -1,0 +1,184 @@
+\lecture{3}
+\title{Regular Expressions, The Pumping Lemma}
+
+\begin{document}
+
+\subsection{Generalized NFAs}
+
+Recall that we proved in
+\href{/18.404/lectures/2/#regular-expressions-are-regular-languages}{Lecture 2}
+the following theorem
+by introducing a new kind of FA (the NFA).
+
+\begin{theorem}{Regularness}
+    Every regular expression is a regular language.
+\end{theorem}
+
+In this lecture, we'll introduce \emph{another} kind of FA---the
+\textbf{generalized NFA (GNFA)}---to prove the reverse direction.
+
+\begin{theorem}{Regularness}
+    Every regular language is a regular expression.
+\end{theorem}
+
+\textbf{Definition.}
+A generalized NFA is an NFA in which edges may be labeled
+with any regular expression (not just atoms!).
+We say a GNFA is \textbf{good} if it satisfies the following properties:
+\begin{itemize}
+    \item There is a single accept state distinct from the start state.
+    \item There exists a transition between every pair of states
+    and a self-loop at every state (possibly with label $\emptyset$) \dots
+    \begin{itemize}
+        \item \dots except the start state must have indegree zero \dots
+        \item \dots and the accept state must have outdegree zero.
+    \end{itemize}
+\end{itemize}
+Evidently, every GNFA can be easily translated into
+a good GNFA by adding $\emptyset$ edges and some additional states.
+\begin{center}
+    \frame{\includegraphics[width=0.75\textwidth]{lecture-03/GNFA-examples}}
+\end{center}
+
+Expectedly, good GNFAs are equally as representative of regular languages
+as ordinary NFAs (or DFAs) are.
+
+\begin{theorem}{GNFA Implies NFA}
+    A language $A$ is recognized by some NFA
+    if and only if $A$ is recognized by some GNFA.
+\end{theorem}
+
+\begin{proof}
+    The NFA $\implies$ GNFA direction is trivial,
+    so we only show the GNFA $\implies$ NFA direction.
+
+    Simply apply the fact from \href{/18.404/lectures/2}{Lecture 2}
+    that every regular expression is the language of some NFA.
+    That is, for each edge with regular expression $r$,
+    replace that edge with the NFA whose language is $r$,
+    linking into and out of the NFA using $\epsilon$-edges.
+    \begin{center}
+        \frame{\includegraphics[width=0.5\textwidth]{lecture-03/GNFA-equivalence}}
+    \end{center}
+    If this new NFA accepts a string $s$,
+    then the original GNFA must also accept $s$;
+    to see why, consider breaking up the computation path of $s$
+    into sub-paths $p \to q$ where $p$ and $q$ are states of the original GNFA,
+    and so\dots ~ $\blacksquare$
+\end{proof}
+
+\subsection{Regular Languages are Regular Expressions}
+
+We now prove the following theorem.
+
+\begin{theorem}{GNFA Regularness}
+    Every good GNFA regular language is a regular expression.
+\end{theorem}
+
+\begin{proof}
+    Proof by induction on the number of states.
+    The base case is trivial.
+
+    For the inductive step, remove a state $X$ from the GNFA $G$
+    that is not the start or accept state.
+    \begin{center}
+        \frame{\includegraphics[width=0.5\textwidth]{lecture-03/GNFA-proof}}
+    \end{center}
+    Furthermore, for \emph{every} ordered pair of states
+    $(p, q) \in (Q \setminus \{X\})^2$,
+    update the label of the edge $p \to q$ as shown above.
+    This leaves the language of $G$ unchanged,
+    so we can induct down successfully. ~ $\blacksquare$
+\end{proof}
+
+\begin{remark}
+    CYU: Where, in the proof, does the ``goodness'' of the GNFA get used?
+\end{remark}
+
+And of course, by combining this theorem with the
+``GNFA Implies NFA'' theorem preceding it, we get:
+
+\begin{theorem}{DFA Regularness}
+    Every (DFA) regular language is a regular expression.
+\end{theorem}
+
+\subsection{Proving Nonregularity}
+
+All of our work so far has gone toward proving
+the regularity of languages.
+What about nonregularity?
+
+\textbf{Example.}
+Consider the following languages with alphabet $\Sigma = \{\str{0}, \str{1}\}$.
+\[
+B := \{w \mid w
+\text{ has as many } \str{0}\text{s} \text{ as } \str{1}\text{s}\}
+~~~ \parallel ~~~
+C := \{w \mid w
+\text{ has as many } \str{01}\text{s} \text{ as } \str{10}\text{s}\}
+\]
+As we'll see, $B$ is nonregular.
+But $C$ is regular---consider
+a five-state FA that tracks
+$(\textsc{First Symbol}, \textsc{Last Symbol})$.
+
+\begin{theorem}{Pumping Lemma}
+    For every regular language $A$,
+    there must be some \textbf{pumping length} $p$
+    such that:
+    \begin{quote}
+        For all $s \in A$ with $|s| \geq p$,
+        we may write $s = xyz$ with $y \neq \epsilon$
+        such that $|xy| \leq p$
+        and $xy^iz \in A$ for all $i \in \mathbb{N}$.
+    \end{quote}
+\end{theorem}
+
+\begin{proof}
+    The pumping length of $A = L(M)$ is the number of states in the FA $M$.
+
+    Consider some string $s \in A$ with $|s| \geq p$.
+    Suppose it begins at $S$ and ends at $T$ through some path $\mathcal{P}$.
+    Since $|s| \geq p$, the path $\mathcal{P}$ must land on some state twice.
+    Say this happens for the first time at state $L$.
+    \begin{center}
+        \frame{\includegraphics[width=0.5\textwidth]{lecture-03/pumping-lemma-proof}}
+    \end{center}
+    Then taking $(x, y, z) := (S \to L, L \to L, L \to T)$ just works.
+    ~ $\blacksquare$
+\end{proof}
+
+\begin{remark}
+    All finite languages are regular.
+    And this is trivially consistent with the pumping lemma---why?
+\end{remark}
+
+\begin{problem}
+    Prove that the language $D := \{\str{0}^k \str{1}^k \mid k \geq 0\}$ is not regular.
+\end{problem}
+
+\begin{solution}
+    Argue by contradiction.
+    If the pumping length were $p$,
+    then $s = \str{0}^p\str{1}^p \in D$ would contradict the pumping lemma.
+    ~ $\blacksquare$
+\end{solution}
+
+\begin{problem}
+    Prove that the language $B := \{w \mid w
+    \text{ has as many } \str{0}\text{s} \text{ as } \str{1}\text{s}\}$
+    is not regular.
+\end{problem}
+
+\begin{solution}
+    The point is that if $B$ is regular,
+    then so is $D = B \cap \str{0}^*\str{1}^*$ (by closure).
+    Contradiction by the previous problem.
+    ~ $\blacksquare$
+\end{solution}
+
+Unfortunately, there exist nonregular languages
+that satisfy the pumping lemma;
+take $\str{1}\str{1}^*D \cup \str{0}^*\str{1}^*$ with pumping length $1$, say.
+
+\end{document}

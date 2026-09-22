@@ -1,0 +1,49 @@
+\lecture{3}
+\title{Approximation Theory}
+
+\begin{document}
+
+These are the important questions we will be answering
+during this lecture.
+\begin{itemize}
+    \item \textbf{Approximation.}
+    What is the best $\hat{\mathcal{R}}(\theta^*)$
+    (empirical risk) we can achieve with our model?
+    \item \textbf{Optimization.}
+    How good is our learning algorithm
+    at minimizing $\hat{\mathcal{R}}(\theta)$ (empirical risk)?
+    \item \textbf{Generalization.}
+    How different is $\hat{\mathcal{R}}(\theta)$ (empirical risk)
+    from $\mathcal{R}(\theta)$ (true risk)?
+\end{itemize}
+
+\dots and I realize that I have no reason to be here,
+because this lecture covers the exact same content as:
+\begin{itemize}
+    \item The ``Neural Network Universal Approximation'' section
+    of \href{/6.790/lectures/12/#neural-network-universal-approximation}{Lecture 12}
+    of 6.790.
+    \item The ``Neural Network Depth'' section
+    of \href{/6.790/lectures/13/#neural-network-depth}{Lecture 13} of 6.790.
+    \item The ``Estimation Error Bounding'' section
+    of \href{/6.790/lectures/10/#estimation-error-bounding}{Lecture 10}
+    of 6.790.
+\end{itemize}
+
+This class offers a little more detail on the
+``Universal Approximation'' theorem;
+it provides a (very non-rigorous) proof sketch of:
+
+\begin{theorem}{Universal Approximation}
+    Suppose $g \colon [0, 1]^d \to \mathbb{R}$ is an $L$-Lipschitz function.
+    Then for any $\epsilon > 0$,
+    there exists a 3-layer ReLU network $f$
+    with $O((L/\epsilon)^d)$ units such that:
+    \[ \int_{[0, 1]^d} |f(\mathbf{x}) - g(\mathbf{x})|
+    \, \mathrm{d}\mathbf{x} \leq 2 \epsilon. \]
+\end{theorem}
+
+Actually, no, turns out 6.790 said this already, too.
+I'm leaving.
+
+\end{document}
