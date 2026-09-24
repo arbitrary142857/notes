@@ -1,0 +1,245 @@
+\lecture{4}
+\title{Context-Free Grammars and Pushdown Automata}
+
+\begin{document}
+
+\subsection{Context-Free Grammars: URLs}
+
+Recall from
+\href{https://web.mit.edu/6.102/www/sp26/classes/12-grammars-parsing}{Lecture 12}
+of 6.1020 (Software Construction)
+that the following is a \textbf{context-free grammar (CFG)}.
+\begin{verbatim}
+url ::= 'http://' hostname (':' port)? '/' 
+hostname ::= word '.' hostname | word '.' word
+port ::= [0-9]+
+word ::= [a-z]+
+\end{verbatim}
+We might describe the components of this CFG like so:
+\begin{itemize}
+    \item The \textbf{variables} $V$ are \str{url}, \str{hostname},
+    \str{word}, and \str{port}.
+    \item The \textbf{terminals} $\Sigma$
+    are the digits, the lowercase letters,
+    and the symbols $\{\str{.}, \ \str{:}, \ \str{/}\}$.
+    \item The \textbf{rules} $R$ are the four lines of the grammar.
+    \begin{itemize}
+        \item If one more formally says that a rule is
+        $(A, w) \in V \times (V \cup \Sigma)^*$, then
+        some lines are technically multiple rules.
+        \item For example,
+        $(\str{hostname}, \str{word}.\str{word}) \in R$
+        is one such rule.
+    \end{itemize}
+    \item The \textbf{start variable} $S \in V$ is \str{url}.
+\end{itemize}
+The \textbf{language} corresponding to this CFG is the set of valid URLs.
+
+\textbf{Definition.}
+A language $A = L(G)$ is a \textbf{context-free language (CFL)}
+if it is the language of some CFG $G$.
+
+By replacing all variables with their productions,
+we can also describe our URL language
+in a single regular expression.
+\begin{verbatim}
+url ::= 'http://' ([a-z]+ '.')+ [a-z]+ (':' [0-9]+)? '/' 
+\end{verbatim}
+Note that this cannot be done for all CFGs.
+\begin{verbatim}
+start ::= '0' start '1' | ''        // cannot be done
+start ::= '0' start | ''            // can be done
+\end{verbatim}
+The problem with the former of these two CFGs is \emph{self-embedding}.
+In fact, it turns out that any CFG without self-embedding
+can be reduced to a regular expression.
+(This fact was not discussed in lecture; proof omitted.)
+
+\subsection{Context-Free Grammars: PEMDAS}
+
+Consider this example of a CFG $G_1 := (V, \Sigma, R, S)$.
+\begin{itemize}
+    \item Take the variables $V := \{E, T, F\}$.
+    \item Take the terminals $\Sigma := \{+, \times, (, ), a\}$.
+    \item Take the rules $R := \left\{
+        (E, ~ E + T \mid T), ~~
+        (T, ~ T \times F \mid F), ~~
+        (F, ~ (E) \mid a)
+    \right\}$.
+    \begin{itemize}
+        \item Here, $\mid$ denotes ``or''.
+        More formally, $R$ should contain $6$ ordered pairs,
+        such as $(E, E+T)$ and $(E, T)$, say.
+    \end{itemize}
+    \item Take the start variable $S := E$.
+\end{itemize}
+Then the language $L(G_1)$ of $G_1$
+contains words such as $a + a \times a$,
+and $(a + a) \times a$, and $a + (a \times a)$.
+
+Each of these words has its own \textbf{parse tree}
+that describes its \textbf{derivation} from variables to terminals.
+
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-04/parse-tree}}
+\end{center}
+
+Notice how the structure of the parse tree, itself,
+encodes the fact that $\times$ comes before $+$.
+
+\subsection{Context-Free Grammars: Ambiguous PEMDAS}
+
+Now consider the following CFG $G_2 := (V, \Sigma, R, S)$
+with the same language.
+\begin{itemize}
+    \item Take the variables $V := \{E\}$.
+    \item Take the terminals $\Sigma := \{+, \times, (, ), a\}$.
+    \item Take the rules $R := \left\{
+        (E, ~ E + E \mid E \times E \mid (E) \mid a)
+    \right\}$.
+    \item Take the start variable $S := E$.
+\end{itemize}
+Then $L(G_2)$ also contains words such as $a + a \times a$,
+and $(a + a) \times a$, and $a + (a \times a)$.
+
+But unlike $G_1$, the grammar $G_2$ is \textbf{ambiguous},
+in that some words can have multiple \textbf{derivations}
+with distinct \textbf{parse trees}.
+
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-04/ambiguity}}
+\end{center}
+
+The ambiguity of this grammar means that
+this grammar does not inherently encode the fact that
+$\times$ comes before $+$.
+
+\subsection{Pushdown Automata}
+
+Informally, a pushdown automaton is just an NFA
+that is granted the additional ability to read and write memory to a stack.
+
+\textbf{Definition.}
+A pushdown automaton (PDA) is a 6-tuple
+$P = (Q, \Sigma, \Gamma, \delta, q_0, F)$ where:
+\begin{itemize}
+    \item The usual NFA components have the same meanings as before.
+    \begin{itemize}
+        \item The set of \textbf{states} is $Q$.
+        \item The \textbf{input alphabet}
+        (the set of atoms accepted as input) is $\Sigma$.
+        \item The \textbf{start state} is $q_0 \in Q$.
+        \item The set of \textbf{accept states} is $F \subseteq Q$.
+    \end{itemize}
+    \item The \textbf{stack alphabet}
+    (the set of atoms accepted by the stack) is $\Gamma$.
+    \item The \textbf{transition function} has type
+    $\delta \colon Q \times \Sigma_{\epsilon} \times \Gamma_{\epsilon}
+    \to \mathcal{P}(Q \times \Gamma_{\epsilon})$
+    where $\Sigma_{\epsilon} := \Sigma \cup \{\epsilon\}$
+    and $\Gamma_{\epsilon} := \Gamma \cup \{\epsilon\}$.
+\end{itemize}
+
+\begin{problem}
+    Design a pushdown automaton that recognizes the (nonregular!) language
+    $A := \{\str{0}^k\str{1}^k \mid k \geq 0\}$.
+\end{problem}
+
+\begin{solution}
+    The algorithm, informally, works like so:
+    \begin{enumerate}
+        \item So long as the input is \str{0},
+        push \str{X} onto the stack.
+        \item The first time the input is \str{1},
+        transition from the start state $q_0$ to the state $q_1$
+        without consuming that \str{1}.
+        \item So long as the input is \str{1},
+        pop \str{X} from the stack.
+        \begin{itemize}
+            \item If at any point a \str{0} is read as input,
+            move to a permanent \str{REJECT} state.
+            \item If at any point a \str{1} is read while the stack is empty,
+            move to a permanent \str{REJECT} state.
+        \end{itemize}
+        \item At the end of the input string,
+        move to an \str{ACCEPT} state if the stack is empty;
+        otherwise, \str{REJECT}.
+    \end{enumerate}
+    Technically, the hardware of a PDA
+    cannot explicitly ``know'' whether the stack is empty or not.
+    Here's an easy fix:
+    as a Step 0, push \str{END} onto the stack;
+    if the top of the stack is ever \str{END},
+    the stack must be effectively empty.
+    ~ $\blacksquare$
+\end{solution}
+
+\begin{problem}
+    Design a pushdown automaton that recognizes the (nonregular!) language
+    $A := \{ww^R \mid w \in \{\str{0}, \str{1}\}^*\}$.
+\end{problem}
+
+\begin{solution}
+    If we knew that $w$ had length $10$ (say),
+    then all we would do is push the first $10$ input symbols onto the stack,
+    then pop the stack $10$ times and compare the result of each pop
+    against the next $10$ input symbols read.
+
+    Of course, we don't know the length of $w$ before we read it.
+    But the \emph{nondeterminism} of the NFA component of the PDA
+    allows us to work around this in the obvious way.
+    ~ $\blacksquare$
+\end{solution}
+
+\subsection{CFLs are PDA Languages}
+
+We'll finish lecture with a theorem that says
+exactly what you'd expect.
+
+\begin{theorem}{CFL $\implies$ PDA}
+    If $A$ is a context-free language, then it is recognized by some PDA.
+\end{theorem}
+
+\begin{proof}
+    Given any $w \in A$, the PDA just uses the stack as scratch work
+    to nondeterministically try to guess the derivation of $w$.
+    \begin{enumerate}
+        \item Initially, the stack contains
+        the start variable of the CFG atop \str{END}.
+        \item Repeat the following until \str{ACCEPT}
+        or \str{REJECT} is reached.  Suppose the top of the stack is $X$.
+        \begin{itemize}
+            \item If $X$ is a variable,
+            then (nondeterministically) replace $X$ with
+            one of its productions.
+            \item If $X$ is a terminal symbol,
+            then pop $X$ from the stack, and
+            check if $X$ matches the input.
+            \begin{itemize}
+                \item If it does match,
+                then proceed to the next atom in the input.
+                \item If it doesn't match, then \str{REJECT}.
+            \end{itemize}
+            \item If $X = \str{END}$, then
+            \str{ACCEPT} if the input has been entirely read,
+            and \str{REJECT} otherwise.
+        \end{itemize}
+    \end{enumerate}
+\end{proof}
+
+\begin{remark}
+    Interestingly, the states of the PDA are effectively unused;
+    they only exist to move to \str{REJECT} and \str{ACCEPT}.
+\end{remark}
+
+It turns out the converse is also true.  In particular,
+
+\begin{theorem}{CFL $=$ PDA}
+    A language is context-free if and only if
+    it is recognized by some PDA.
+\end{theorem}
+
+The proof of the converse is in the textbook,
+but we won't go over it in lecture.
+
+\end{document}
