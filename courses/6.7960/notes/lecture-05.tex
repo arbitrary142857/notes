@@ -1,0 +1,185 @@
+\lecture{5}
+\title{Architectures: Sequence Modeling}
+
+\begin{document}
+
+\subsection{Sequence Modeling}
+
+We spend the first 10 minutes stating that
+\textbf{sequence modeling} involves a model that retains memory,
+thereby deciding its output and updating its memory at each time step
+as a function of its memory and its present input.
+
+In this lecture, we'll discuss the CNN and RNN paradigms;
+we'll talk about attention and transformers next time.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/paradigms}}
+\end{center}
+
+\subsection{Causal CNNs}
+
+The architecture of causal CNNs looks exactly as you'd expect.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/causal-CNN}}
+\end{center}
+Rather than taking hidden layers to be convolutions across space,
+we take hidden layers to be convolutions across time.
+In some sense, the architecture has no fixed size of its input layer;
+the size of its input layer grows as time grows.
+
+\begin{remark}
+    Though in another sense, the size of the \emph{relevant} input layer
+    is bounded by the \textbf{context length}.
+\end{remark}
+
+Note that there is weight-sharing:
+the kernel used to get from the input layer to the first layer
+remains invariant as time passes.
+
+\subsection{Recurrent Neural Networks (RNNs)}
+
+Wow, we've already burnt half an hour!
+Here's how the architecture of causal RNNs works.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/RNN}}
+\end{center}
+
+The idea is that $\mathbf{y}_t$ depends not just on the input $\mathbf{x}_t$,
+but also on a state $\mathbf{h}_t$ that updates every time step.
+
+Thus, to specify an RNN, one must specify
+$\mathbf{h}_t = f(\mathbf{h}_{t - 1}, \mathbf{x}_t)$
+and $\mathbf{y}_t = g(\mathbf{h}_t)$.
+Pictured below is a possible choice of $f$ and $g$.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/vanilla-RNN}}
+\end{center}
+
+One reason for using $\tanh$ to compute state
+is that it is zero-centered.
+
+\begin{remark}
+    I feel like a 10-year-old could understand
+    the level of depth taught in this class.
+\end{remark}
+
+Here's what forward passes look like in RNNs.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/forward-pass}}
+\end{center}
+
+And wow!  Here's what the backward pass looks like!
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/backward-pass}}
+\end{center}
+
+What a surprise!  It's now been almost an hour,
+and we've already covered 5 pages of a picture book!
+
+\subsection{Long Short-Term Memory (LSTM)}
+
+There's a problem with our RNN design.
+
+In practice, we cannot take backward passes over such long distances,
+because we will have either exploding or vanishing gradients,
+since we are taking products of arbitrarily-large numbers of terms.
+
+One partial fix is to use
+the \textbf{Long Short-Term Memory (LSTM)} architecture.
+First, we must spend a full minute reviewing the meanings of the words
+``long'', ``short-term'', and ``memory'',
+for those who joined late and don't understand slang.
+
+Here's the architecture of an LSTM.
+
+\begin{center}
+    \frame{\includegraphics[width=0.75\textwidth]{lecture-05/LSTM}}
+\end{center}
+
+Each cell of the LSTM takes in an input $\mathbf{x}_t$,
+the previous cell's hidden state $\mathbf{h}_{t - 1}$,
+and the previous cell's cell state $C_{t - 1}$.
+
+We now discuss the architecture of each cell;
+throughout this discussion, it helps to recall that
+$\sigma$ is like a \texttt{0/1} switch,
+whereas $\tanh$ maps values into $[-1, 1]$.
+
+\begin{itemize}
+    \item The cell state $C_t$ is
+    $C_t = f_t \cdot C_{t - 1} + i_t \cdot \tilde{C}_t$.
+    \begin{itemize}
+        \item The \emph{forget} weight $f_t$
+        is given by $f_t = \sigma(W_f \cdot [\mathbf{h}_{t - 1}, \mathbf{x}_t] + b_f)$.
+        \begin{center}
+            \frame{\includegraphics[width=0.5\textwidth]{lecture-05/forget}}
+        \end{center}
+        \item The \emph{learn-information} weight $i_t$
+        is given by $i_t = \sigma(W_i \cdot [\mathbf{h}_{t - 1}, \mathbf{x}_t] + b_i)$.
+        \item The \emph{new information} being learned $\tilde{C}_t$
+        is given by $\tilde{C}_t = \tanh(W_C \cdot [\mathbf{h}_{t - 1}, \mathbf{x}_t] + b_C)$.
+        \begin{center}
+            \frame{\includegraphics[width=0.5\textwidth]{lecture-05/learn}}
+        \end{center}
+    \end{itemize}
+    \item The hidden state $\mathbf{h}_t$ is
+    $\mathbf{h}_t = o_t \cdot \tanh(C_t)$, where
+    $o_t = \sigma(W_o \cdot [\mathbf{h}_{t - 1}, \mathbf{x}_t] + b_o)$.
+    \begin{center}
+        \frame{\includegraphics[width=0.35\textwidth]{lecture-05/output}}
+    \end{center}
+\end{itemize}
+
+There are variations of the LSTM architecture, too, such as the GRU below,
+which has a hidden state but no cell state.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/GRU}}
+\end{center}
+
+Historically, the LSTM and GRU were go-to architectures for RNN models
+because they mitigated vanishing-gradient problems.
+Nowadays, though, transformers are the favored architecture.
+
+\subsection{Deep RNNs}
+
+You can also make deep RNNs.  They look and work how you'd expect.
+
+\begin{center}
+    \frame{\includegraphics[width=0.35\textwidth]{lecture-05/deep-RNN}}
+\end{center}
+
+And you might integrate the LSTM stuff with this, too,
+as used by Google in 2016.
+
+\begin{center}
+    \frame{\includegraphics[width=0.35\textwidth]{lecture-05/LSTM-deep-RNN}}
+\end{center}
+
+Wow.  Amazing.
+
+\subsection{Advantages and Disadvantages}
+
+This slide says it all.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/advantages-disadvantages}}
+\end{center}
+
+The lecture just reads off this slide.
+
+\subsection{Memory}
+
+This slide says it all.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/memory}}
+\end{center}
+
+I'm leaving now.
+
+\end{document}

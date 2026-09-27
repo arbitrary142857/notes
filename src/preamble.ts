@@ -110,6 +110,15 @@ export function parsePreamble(source: string, ctx: Context): void {
       continue;
     }
 
+    if (cmd.name === "newcommand" || cmd.name === "renewcommand") {
+      const parsed = parseNewCommand(source, i - cmd.name.length - 1, cmd.name);
+      if (parsed) {
+        registerCommand(ctx, parsed.name, parsed.macro);
+        i = parsed.end;
+        continue;
+      }
+    }
+
     if (
       cmd.name === "usepackage" ||
       cmd.name === "documentclass" ||
@@ -126,15 +135,6 @@ export function parsePreamble(source: string, ctx: Context): void {
     ) {
       i = skipPackageLine(source, i);
       continue;
-    }
-
-    if (cmd.name === "newcommand" || cmd.name === "renewcommand") {
-      const parsed = parseNewCommand(source, i - cmd.name.length - 1, cmd.name);
-      if (parsed) {
-        registerCommand(ctx, parsed.name, parsed.macro);
-        i = parsed.end;
-        continue;
-      }
     }
 
     if (cmd.name === "DeclareMathOperator") {
@@ -157,12 +157,22 @@ export function parsePreamble(source: string, ctx: Context): void {
   }
 }
 
+/** Redefinitions that only affect print layout, with no meaning in the notes. */
+const IGNORED_REDEFINITIONS = new Set([
+  "horizontal",
+  "circled",
+  "cfttoctitlefont",
+  "cftaftertoctitle",
+  "contentsname",
+  "baselinestretch",
+]);
+
 function registerCommand(ctx: Context, name: string, macro: Macro): void {
   if (macro.math) {
     ctx.katexMacros[`\\${name}`] = macro.body;
     return;
   }
-  if (name === "horizontal" || name === "circled") return;
+  if (IGNORED_REDEFINITIONS.has(name)) return;
   ctx.textMacros.set(name, macro);
 }
 

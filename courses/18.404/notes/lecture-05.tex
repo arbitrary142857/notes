@@ -1,0 +1,264 @@
+\lecture{5}
+\title{Context-Free Pumping Lemma, Turing Machines}
+
+\begin{document}
+
+Problem set 2 is due on Tuesday, October 13th at noon.
+Quiz 1 is from 7:30 PM to 9 PM in Walker on October 6th.
+
+\subsection{Context-Free Languages: Miscellaneous}
+
+Recall from \href{/18.404/lectures/4/#cfls-are-pda-languages}{Lecture 4}
+the following theorem (for which we only proved one direction).
+
+\begin{theorem}{CFL $=$ PDA}
+    A language is context-free if and only if
+    it is recognized by some PDA.
+\end{theorem}
+
+The PDA $\implies$ CFL direction is proven by
+a similar strategy as used to show GNFA $\implies$ Regular Expression.
+
+It turns out that the following are also true;
+these are optional exercises in problem set 2.
+\begin{itemize}
+    \item The class of CFLs is closed under union $A \cup B$,
+    concatenation $AB$, and star $A^*$.
+    \item The class of CFLs is \emph{not} closed
+    under intersection $A \cap B$ and complementation $\overline{A}$.
+    \begin{itemize}
+        \item Roughly, $A \cap B$ is not necessarily a CFL
+        because simulating the PDA of $A$ and the PDA of $B$
+        requires \emph{two stacks}.
+    \end{itemize}
+    \item The intersection of a CFL $A$ and a regular language $L$
+    is also a CFL.
+    \begin{itemize}
+        \item Roughly, $A \cap L$ is a CFL
+        because simulating the PDA of $A$ and the NFA of $L$
+        still only requires \emph{one stack}.
+    \end{itemize}
+\end{itemize}
+
+
+\begin{remark}
+    Outside of context-free languages,
+    one could also talk about \emph{context-sensitive} languages
+    whose rules look like:
+\begin{verbatim}
+      A ::= 'a' B 'b' | 'c'     // (1)
+  A 'a' ::= B 'c'               // (2)
+'c' A B ::= 'x'                 // (3)
+\end{verbatim}
+    Rules (2) and (3) depend on the surrounding context;
+    these rules are not allowed for context-free languages.
+\end{remark}
+
+\subsection{Context-Free Pumping Lemma}
+
+Just as we had a pumping lemma for regular languages,
+we have one for CFLs too.
+
+\begin{theorem}{CFL Pumping Lemma}
+    For every CFL $A$,
+    there must be some \textbf{pumping length} $p$ such that:
+    \begin{quote}
+        For all $s \in A$ with $|s| \geq p$,
+        we may write $s = uvxyz$ with $vy \neq \epsilon$
+        such that $|vxy| \leq p$ and
+        $uv^ixy^iz \in A$ for all $i \in \mathbb{N}$.
+    \end{quote}
+\end{theorem}
+
+\begin{proof}
+    Any very long string $s \in A$
+    must have a very tall parse tree.
+    In particular, this very tall parse tree must have
+    some variable $R$ that appears twice
+    along some downward branch of the tree.
+    \begin{center}
+        \frame{\includegraphics[width=0.75\textwidth]{lecture-05/pumping-parse-tree}}
+    \end{center}
+    So long as such a variable $R$ is found,
+    we can pump as pictured above;
+    in short, duplicate the subtree that goes $R \to R$.
+    There remain some details to be filled in---and, furthermore,
+    some technical fixes our construction might need.
+
+    \textbf{Question.}
+    What should $p$ be such that
+    (i) some variable $R$ must appear twice down a single path, and
+    (ii) $|vxy| \leq p$ must hold?
+    \begin{quote}
+        Let $b$ denote the length of the longest replacement string
+        in the CFG, and let $V$ be its variables.
+        We claim $p = b^{|V| + 1}$ works.
+
+        Consider the \emph{longest} root-to-leaf path in the parse tree.
+        Since $|s| \geq p = b^{|V| + 1}$,
+        this path must have height at least $|V| + 1$.
+        So among the \emph{lowest} $|V| + 1$ edges of this path,
+        some variable $R$ must appear twice, as needed.
+
+        Furthermore, because the higher of the two $R$s
+        has height \emph{at most} $|V| + 1$,
+        it must be that $|vxy| \leq b^{|V| + 1} = p$. ~ $\square$
+    \end{quote}
+
+    \textbf{Question.}
+    How can we guarantee that $vy \neq \epsilon$ in our construction?
+    \begin{quote}
+        Suppose that $v = \epsilon$ and $y = \epsilon$.
+        Then the parse tree can be shrunk (without changing $s$)
+        by replacing the subtree rooted at the upper $R$
+        with the subtree rooted at the lower $R$.
+
+        So we can prevent $vy = \epsilon$
+        by only considering the parse tree of $s$
+        with the fewest nodes. ~ $\square$
+    \end{quote}
+
+    And that's the proof. ~ $\blacksquare$
+\end{proof}
+
+\begin{problem}
+    Prove that the language
+    $C := \{\str{a}^k \str{b}^k \str{c}^k \mid k \geq 0\}$
+    is not a CFL.
+\end{problem}
+
+\begin{solution}
+    Suppose FTSOC that it is a CFL with pumping length $p$.
+    Then consider $s = \str{a}^p\str{b}^p\str{c}^p \in C$.
+
+    Say it splits like $s = uvxyz$ as in the pumping lemma.
+    Since $|vxy| \leq p$, the substring $vxy$
+    can cover at most two of the three blocks
+    $\{\str{a}^p, \str{b}^p, \str{c}^p\}$.
+    So pumping up must increase some letter's frequency
+    while leaving another letter's frequency unchanged.
+    But then the resulting word is not in $C$, contradiction. ~ $\blacksquare$
+\end{solution}
+
+\begin{remark}
+    Earlier in this lecture, we said
+    $A \cap B$ is not necessarily a CFL because
+    it necessitates a PDA architecture with \emph{two stacks}.
+    This example shows why \emph{two stacks} are stronger than
+    \emph{one stack}---the language $C$ is easily recognizable
+    given two stacks!
+\end{remark}
+
+\begin{problem}
+    Prove that the language
+    $D := \{w \mid w \text{ has equal \#s of }
+    \str{a}, \str{b}, \str{c}\}$
+    is not a CFL.
+\end{problem}
+
+\begin{solution}
+    You \emph{could} use the same pumping-lemma contradiction
+    $\str{a}^p\str{b}^p\str{c}^p$ as in the previous proof\dots
+    or you could recall:
+    \begin{quote}
+        \textbf{Proposition.}
+        The intersection of a CFL and a regular language is also a CFL.
+    \end{quote}
+    So if $D$ were a CFL, then so would be
+    $D \cap \str{a}^*\str{b}^*\str{c}^* = C$.
+    But we know $C$ is not a CFL, contradiction. ~ $\blacksquare$
+\end{solution}
+
+Here's an example where the choice of string $s$ is less obvious.
+
+\begin{problem}
+    Prove that the language
+    $B := \{ww \mid w \in \{\str{0}, \str{1}\}^*\}$ is not a CFL.
+\end{problem}
+
+\begin{solution}
+    You can check that
+    $s = \str{0}^p\str{1}\str{0}^p\str{1} \in B$ does \emph{not} raise
+    a contradiction via the pumping lemma.  Uh oh!
+
+    But the string $s = \str{0}^p\str{1}^p\str{0}^p\str{1}^p \in B$
+    does raise a contradiction, so we win anyway. ~ $\blacksquare$
+\end{solution}
+
+\subsection{Turing Machines}
+
+A \textbf{Turing machine (TM)} is like a PDA, but instead of owning a \emph{stack},
+the machine owns a \emph{read/write tape}.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-05/turing-machine}}
+\end{center}
+
+\textbf{Definition.}
+A Turing machine is a 7-tuple
+$M = (Q, \Sigma, \Gamma, \delta, q_0, q_{\mathrm{acc}}, q_{\mathrm{rej}})$,
+where:
+\begin{itemize}
+    \item The usual NFA components have the same meanings as before\dots
+    except for $q_{\mathrm{acc}}$ and $q_{\mathrm{rej}}$.
+    \begin{itemize}
+        \item The set of \textbf{states} is $Q$.
+        \item The \textbf{input alphabet}
+        (the set of atoms accepted as input) is $\Sigma$.
+        \item The \textbf{start state} is $q_0 \in Q$.
+        \item The \textbf{accept state} is $q_{\mathrm{acc}}$.  It is
+        a \emph{halt state}, meaning the machine halts
+        upon reaching $q_{\mathrm{acc}}$.
+        \item The \textbf{reject state} is $q_{\mathrm{rej}}$.  It is
+        a \emph{halt state}, meaning the machine halts
+        upon reaching $q_{\mathrm{rej}}$.
+    \end{itemize}
+    \item The \textbf{tape alphabet}
+    (the set of atoms accepted by the tape) is $\Gamma$,
+    which must contain a \textbf{blank symbol} $\sqcup$
+    and everything in $\Sigma$.
+    \begin{itemize}
+        \item The tape initially holds the input word $w$,
+        followed by infinitely many instances of the blank symbol $\sqcup$.
+    \end{itemize}
+    \item The \textbf{transition function} has type
+    $\delta \colon Q \times \Gamma \to
+    Q \times \Gamma \times \{\mathrm{L}, \mathrm{R}\}$.
+    So at each step, the Turing machine\dots
+    \begin{itemize}
+        \item \dots reads in the current state $\in Q$
+        and the atom $\in \Gamma$ at its tape position \dots
+        \item \dots then moves to a new state $\in Q$,
+        writes an atom $\in \Gamma$ at its tape position,
+        and moves left or right along the tape.
+    \end{itemize}
+\end{itemize}
+\emph{\textcolor{red}{Warning!}} ~ 
+Whereas PDAs and FAs read in the input
+one character at a time from left to right\dots
+Turing machines read in the input off of the tape itself,
+and may read it in any way they choose.
+(So in the example image above,
+the input $w$ is \str{babaisMe}.)
+
+Note that for any word $w$, a Turing machine $M$ either
+\textbf{accepts} $w$, \textbf{rejects} $w$, or \textbf{never halts}.
+
+\begin{remark}
+    There is no sense in which a Turing machine
+    ``finishes reading the input''---again,
+    because Turing machines do not read the input from left-to-right
+    like PDAs and FAs do.
+    So halting can \emph{only} occur
+    by arriving at the accept or reject state.
+\end{remark}
+
+\textbf{Definition.}
+A language $A$ is \textbf{Turing-recognizable} if
+$A = L(M)$ for some Turing machine $M$.
+
+\textbf{Definition.}
+A language $A$ is \textbf{decidable} if
+$A = L(M)$ for some Turing machine $M$ that \emph{halts on every input}.
+
+\end{document}
