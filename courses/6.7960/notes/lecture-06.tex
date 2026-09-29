@@ -1,0 +1,255 @@
+\lecture{6}
+\title{Transformers}
+
+\begin{document}
+
+\subsection{CNN Limitations}
+
+One limitation of CNNs is that they are not well-suited for
+modeling \emph{long-distance} relationships.
+
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-06/CNN-downside}}
+    \emph{Question: How many birds are in this image?}
+\end{center}
+
+We'll introduce three architectural innovations to fix these problems.
+
+\subsection{Tokens}
+
+\textbf{Definition.}
+A \textbf{token} is just a vector of neurons.
+Connotatively, a token is an \emph{encapsulated} bundle of information.
+You can tokenize \emph{anything}, whether it's image, text, or audio data.
+
+Here are some details on how tokenization is implemented;
+the general principle, though is that the details do not matter.
+\begin{itemize}
+    \item Text is tokenized by using a $\approx$ 100K-entry vocabulary.
+    \begin{itemize}
+        \item There's usually a pre-tokenization step in which
+        a human-designed regex handles whitespace, punctuation, etc.
+        \item The vocabulary is usually learned separately
+        by simply reading text and identifying common bigrams, trigrams, etc.
+    \end{itemize}
+    \item Images are tokenized by simply partitioning the image
+    into patches and vectorizing each patch.
+    \begin{itemize}
+        \item So a $224 \times 224$ image becomes $196$ vectors
+        if patches of size $16 \times 16$ are used.
+        \item Notably, the tokenization process does not take into account
+        the ``content'' of the image.
+    \end{itemize}
+    \item Audio is tokenized by first compressing (e.g., via spectrogram),
+    and only then patching and vectorizing.
+\end{itemize}
+
+\begin{center}
+    \frame{\includegraphics[width=0.7\textwidth]{lecture-06/tokenization}}
+\end{center}
+
+Notably, a very simple tokenization method generally suffices,
+because the NN on tokens, itself, can learn some of the
+more interesting relationships between those tokens.
+
+Here's how tokens look when used as nodes in a neural network (at left).
+\begin{center}
+    \frame{\includegraphics[width=0.6\textwidth]{lecture-06/token-NN}}
+\end{center}
+The linear portions of the NN work how you would expect them to.
+\begin{center}
+    \frame{\includegraphics[width=0.3\textwidth]{lecture-06/linear-token}}
+\end{center}
+The nonlinear mappings from individual tokens to individual tokens
+are implemented not with a $\mathrm{ReLU}$, but with an NN! (Meta.)
+\begin{center}
+    \frame{\includegraphics[width=0.7\textwidth]{lecture-06/nonlinear-token}}
+\end{center}
+
+\subsection{Query-Key-Value Attention}
+
+Currently, the architecture of NN has no way of identifying
+which tokens are relevant and which tokens are not.
+We would like our NN architecture to weight our tokens
+based on how relevant they are to the query.
+
+\begin{center}
+    \frame{\includegraphics[width=0.6\textwidth]{lecture-06/attention-goal}}
+\end{center}
+
+One way to implement this is via \textbf{query-key-value attention}.
+\begin{itemize}
+    \item Each ``input token'' $\mathbf{t}$
+    is mapped to a \textbf{query} token
+    $\mathbf{q} := \mathbf{W}_q\mathbf{t}$
+    (shown in orange, below).
+    \item Each ``image token'' $\mathbf{t}$ 
+    is mapped to a \textbf{key} token
+    $\mathbf{k} := \mathbf{W}_k\mathbf{t}$
+    (shown in purple, below).
+    \item For each pair of image token $\mathbf{a}$
+    and input token $\mathbf{b}$, we can determine
+    the relevance of $\mathbf{a}$ and $\mathbf{b}$
+    by computing the dot product of their query and key tokens
+    $\mathbf{s} = \mathbf{q}_{\mathbf{b}}^{\top} \mathbf{k}_{\mathbf{a}}$.
+    \item Each ``image token'' $\mathbf{t}$
+    is mapped to a \textbf{value} token
+    $\mathbf{v} := \mathbf{W}_v \mathbf{t}$.
+    \begin{itemize}
+        \item One could simply take $\mathbf{W}_v$ to be the identity;
+        it's just extra expressivity.
+    \end{itemize}
+    \item The output $\mathbf{T}_{\mathrm{out}}$ is determined
+    by a weighted sum of the values $\{\mathbf{v}\}$
+    with weights given by the softmax-normalized scores $\mathbf{s}$.
+\end{itemize}
+
+\begin{center}
+    \frame{\includegraphics[width=0.8\textwidth]{lecture-06/query-key-value}}
+\end{center}
+
+\subsection{Self-Attention}
+
+One can also consider \textbf{self-attention}---instead of
+computing the relevance between input and image,
+we compute the relevance between some data and itself.
+
+\begin{center}
+    \frame{\includegraphics[width=0.7\textwidth]{lecture-06/self-attention}}
+\end{center}
+
+Notably, the map from $\mathbf{T}_{\mathrm{in}}$ to $\mathbf{T}_{\mathrm{out}}$
+looks like:
+\[
+    \mathbf{T}_{\mathrm{out}}
+    = \underbrace{\mathrm{softmax}\left(
+        \frac{\mathbf{Q}_{\mathrm{in}}\mathbf{K}_{\mathrm{in}}^{\top}}{\sqrt{m}}
+    \right)}_{\mathbf{A}} \mathbf{V}_{\mathrm{in}}
+\]
+where $m$ is the query/key dimension.
+Note that $\mathbf{A}$ is normalized so that each of its rows sum to $1$,
+so every output token is a weighted average of all the value tokens;
+the weight on $\mathbf{v}_j$ in output token $i$ is
+$\mathbf{A}_{ij} \propto \exp(\mathbf{q}_i^{\top}\mathbf{k}_j / \sqrt{m})$.
+\begin{itemize}
+    \item Relevance is measured under the learned maps:
+    $\mathbf{q}_{\mathbf{a}}^{\top}\mathbf{k}_{\mathbf{b}}
+    = \mathbf{a}^{\top}\mathbf{W}_q^{\top}\mathbf{W}_k\mathbf{b}$,
+    which is \emph{not} symmetric.
+    \begin{itemize}
+        \item So ``A attends to B'' is distinct from
+        ``B attends to A'' (and neither are exactly equivalent to
+        ``A and B are similar'').
+    \end{itemize}
+    \item Unlike in CNNs,
+    every pair of tokens is connected by a single matrix multiplication,
+    no matter how far apart they are.
+\end{itemize}
+Below, the learned projections happen to make each bird-head patch
+attend to the other bird-head patches.
+\begin{center}
+    \frame{\includegraphics[width=0.6\textwidth]{lecture-06/turkey-transformer}}
+\end{center}
+
+\textbf{Definition.} There's also \textbf{multihead self-attention (MSA)},
+in which we concatenate $k$ different attempts at self-attention tokenwise,
+then project back down with a matrix $\mathbf{W}_{\mathtt{MSA}}$.
+
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-06/MSA}}
+\end{center}
+
+\subsection{Transformer Architecture}
+
+Putting together multihead self-attention (MSA) with
+multi-layer perceptrons (MLPs), we get a transformer!
+
+\begin{center}
+    \frame{\includegraphics[width=0.3\textwidth]{lecture-06/transformer}}
+\end{center}
+
+The code for a transformer is extremely simple, too.
+
+\begin{verbatim}[python]
+# x: input data (RGB image)
+# K: tokenization patch size
+# d: token/query/key/value dimensionality (setting these all as the same)
+# L : number of layers
+# W_q_T, W_k_T, W_v_T : transposed query/key/value projection matrices
+# mlp: tokenwise mlps
+
+# tokenize input image
+T = tokenize(x, K) # 3 x Hx W image --> N xd array of token code vectors
+
+# run tokens through all L layers
+for l in range(L):
+
+    # attention layer
+    Q, K, V = nn.matmul(nn.layernorm(T), [W_q_T[l], W_k_T[l], W_v_T[l]])
+    # nn.matmul does matrix multiplication
+    A = nn.softmax(nn.matmul(Q,K.transpose())/sqrt(d), dim=-1)
+    T = nn.matmul(A, V) + T # note residual connection
+
+    # tokenwise mlp
+    T = mlp[l](nn.layernorm(T)) + T # note residual connection
+
+# T now contains the output token representation computed by the transformer
+\end{verbatim}
+
+\subsection{Positional Encodings}
+
+One observation about the transformer architecture
+is that it is \textbf{permutation equivariant}.
+\[ F_{\theta}(\pi(\mathbf{T}_{\mathrm{in}}))
+= \pi(F_{\theta}(\mathbf{T}_{\mathrm{in}}))
+~~~ \text{ and } ~~~
+\textsc{attn}(\pi(\mathbf{T}_{\mathrm{in}}))
+= \pi(\textsc{attn}(\mathbf{T}_{\mathrm{in}}))
+~~~ \text{ for any MLP } F_{\theta}
+~ \text{ and any MSA } \textsc{attn}. \]
+But we actually \emph{don't} want permutation equivariance,
+because that implies that it may be difficult for models to
+learn about forms of data that care about position.
+The fix, naturally, is to add position to each of our tokens.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-06/positional-encoding}}
+\end{center}
+There is some nuance concerning how, exactly, we encode position.
+For images, for example, we might encode position
+by the Fourier coefficients associated with that position.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-06/Fourier-encoding}}
+\end{center}
+Similarly, positional encodings of points on a sphere
+might use spherical harmonics.
+\begin{center}
+    \frame{\includegraphics[width=0.2\textwidth]{lecture-06/spherical-harmonics}}
+\end{center}
+Positional encodings of nodes in a graph are given by the eigenvectors
+of its Laplacian. (Details omitted.)
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-06/graph-encoding}}
+\end{center}
+
+\subsection{Autoregressive Models (GPT, Claude)}
+
+Recall that LLMs like GPT generate text by ``predicting the next word''.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-06/text-prediction}}
+\end{center}
+GPT's means of prediction is basically just a transformer.
+The only distinction is that the attention matrix must forbid
+some tokens attending to tokens that occur in the future.
+To implement this, it suffices to mask $\mathbf{A}$ like so:
+\begin{center}
+    \frame{\includegraphics[width=0.2\textwidth]{lecture-06/masked-attention}}
+\end{center}
+More generally, here's how the causal self-attention relationships look
+for autoregressive image-to-text architectures.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-06/image-to-text}}
+\end{center}
+We call this \emph{cross-modality attention}, because
+attention occurs between data in both text and image modalities.
+
+\end{document}

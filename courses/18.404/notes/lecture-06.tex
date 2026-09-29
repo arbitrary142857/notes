@@ -1,0 +1,201 @@
+\lecture{6}
+\title{TM Variants, Church-Turing Thesis}
+
+\begin{document}
+
+Grades for PSET 1 have been released on Gradescope.
+We have a quiz next Tuesday (October 6th) from 7:30 PM to 9:00 PM in Walker;
+sample questions will be posted on the course website.
+
+\subsection{Turing Machines (Recap) \& The Church-Turing Thesis}
+
+Recall the definition of a Turing machine from
+\href{/18.404/lectures/5/#turing-machines}{Lecture 5}.
+Importantly, for any word $w$, a Turing machine $M$ can either:
+\begin{center}
+    \texttt{ACCEPT} ~ (enter $q_{\mathrm{acc}}$)
+    ~~~ $\parallel$ ~~~
+    \texttt{REJECT BY HALTING} ~ (enter $q_{\mathrm{rej}}$)
+    ~~~ $\parallel$ ~~~
+    \texttt{REJECT BY LOOPING} ~ (never halt)
+\end{center}
+The Turing machine will be our model for a general-purpose computer.
+
+\textbf{Question.}
+Why is a one-tape TM our choice of model?
+Why not anything else? \\
+\textcolor{grey}{(Recall that a PDA with two stacks is strictly more powerful
+than a PDA with just one stack.)}
+
+\emph{Answer:}
+As we'll eventually show in this course,
+it turns out that a one-tape TM
+is equally as powerful as, say, Python or Java,
+because one can compile code in any one of these ``languages''
+into any other.  In fact\dots
+
+\begin{theorem}{The Church-Turing Thesis}
+    Any function computable by an ``algorithm''
+    is computable by a Turing machine.
+\end{theorem}
+
+(The Church-Turing thesis is more of a heuristic than a theorem.)
+
+\textbf{Definition.}
+Also recall from \href{/18.404/lectures/5/#turing-machines}{Lecture 5}
+the following properties of languages and TMs.
+\begin{itemize}
+    \item A Turing machine $M$ is a \textbf{decider}
+    if it halts on every input.
+    \item A language $A$ is \textbf{Turing-recognizable}
+    if $A = L(M)$ for some Turing machine $M$.
+    \item A language $A$ is \textbf{decidable}
+    if $A = L(M)$ for some \emph{decider} $M$.
+\end{itemize}
+
+\subsection{Multi-Tape Turing Machines}
+
+\textbf{Definition.}
+We say that a \textbf{multitape Turing machine} $M$
+is a TM with multiple tapes, naturally.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-06/multitape-TM}}
+\end{center}
+In particular, the transition function of
+a multitape Turing machine with $k$ tapes
+has type $\delta \colon Q \times \Gamma^k \to
+Q \times \Gamma^k \times \{\mathrm{L}, \mathrm{R}\}^k$.
+
+\begin{theorem}{Multitape = Single Tape}
+    A language $A$ is Turing-recognizable
+    if and only if $A = L(M)$ for some \emph{multitape} TM $M$.
+\end{theorem}
+
+\begin{proof}
+    The $\implies$ direction is obvious.
+    For the $\impliedby$ direction, a one-tape TM $S$
+    can simulate a multitape TM $M$ like so.
+    \begin{center}
+        \frame{\includegraphics[width=0.9\textwidth]{lecture-06/multitape-TM-proof}}
+    \end{center}
+    The idea is to simply store the concatenation of all $k$ tapes
+    in a single tape.
+    \begin{itemize}
+        \item Separate each of the $k$ tapes with a \str{\#} symbol.
+        \begin{itemize}
+            \item If one of the $k$ tapes writes in a blank space---thereby
+            ``extending its length''---then we simply
+            shift everything to the right.
+        \end{itemize}
+        \item Keep track of the head position on each of the $k$ tapes
+        by writing $\str{c}^{\bullet}$ if the head is pointing to $\str{c}$.
+    \end{itemize}
+    Details omitted, but they're not hard to implement. ~ $\blacksquare$
+\end{proof}
+
+\begin{remark}
+    It follows that ``a PDA with 100 stacks plus a tape'' is equally as powerful
+    as ``an FA plus a tape''.
+\end{remark}
+
+\subsection{Nondeterministic Turing Machines}
+
+\textbf{Definition.}
+We say that a \textbf{nondeterministic Turing machine (NTM)} $M$ is a TM
+that's nondeterministic, naturally.
+The transition function has type
+$\delta \colon Q \times \Gamma \to
+\mathcal{P}(Q \times \Gamma \times \{\mathrm{L}, \mathrm{R}\})$.
+
+\begin{theorem}{NTM = TM}
+    A language $A$ is Turing-recognizable if and only if
+    $A = L(N)$ for some NTM $N$.
+\end{theorem}
+
+\begin{proof}
+    The $\implies$ direction is obvious.
+
+    For the $\impliedby$ direction, the idea is for a one-tape TM $M$
+    to BFS through the tree of computation paths of $N$.
+    \begin{center}
+        \frame{\includegraphics[width=0.5\textwidth]{lecture-06/BFS}}
+    \end{center}
+    In the single tape of $M$,
+    we simply store the state of all \emph{threads} of $N$,
+    moving down one layer at a time.
+    \begin{center}
+        \frame{\includegraphics[width=0.75\textwidth]{lecture-06/NTM-proof}}
+    \end{center}
+    As before, threads are separated with $\str{\#}$,
+    and tape heads are indicated by the $\bullet$ in $\str{c}^{\bullet}$.
+    Furthermore, each block begins with a cell that stores
+    the FA state that the thread lands at (e.g., $q_2$, $q_3$, or $q_5$,
+    as shown above).
+
+    So the TM should BFS through all threads layer-by-layer
+    and return \str{ACCEPT} if any thread returns \str{ACCEPT}.
+    (Details omitted.)
+    ~ $\blacksquare$
+\end{proof}
+
+\subsection{Enumerators (Turing Machines with Printers)}
+
+\textbf{Definition.}
+We say that an \textbf{enumerator} $E$ is a Turing machine
+that takes no inputs and prints outputs.  Specifically,
+\begin{itemize}
+    \item Its workspace tape is initially completely empty.
+    \item At any point, $E$ can move to a \str{print} state
+    and print the contents of the workspace.
+\end{itemize}
+We let $L(E)$ denote the set of strings that $E$ eventually prints.
+
+\begin{theorem}{Enumerator = TM}
+    A language $A$ is Turing-recognizable if and only if
+    $A = L(E)$ for some enumerator $E$.
+\end{theorem}
+
+\begin{proof}
+    We first consider the $\impliedby$ direction:
+    given any $A$ for which $A = L(E)$,
+    we construct a TM $M$ for which $A = L(M)$.
+    \begin{quote}
+        \emph{Solution:}
+        On input $w$, simply simulate $E$ on a blank tape.
+        During the simulation, check everything it prints for
+        whether it matches $w$.
+        If there's ever a match, return \str{ACCEPT}.
+        ~ $\square$
+    \end{quote}
+    Now for the $\implies$ direction:
+    given any $M$ for which $A = L(M)$,
+    we construct an enumerator $E$ that prints out $A$.
+    \begin{quote}
+        \emph{Solution:}
+        The rough idea is brute force: for each $x \in \Sigma^*$,
+        simulate $M$ on $x$, and print $x$ if $M$ accepts.
+        There are \emph{two} issues:
+        \begin{itemize}
+            \item If we try to simulate one $x \in \Sigma^*$ at a time,
+            then we might fail if a simulation of $M$ on $x$ loops.
+            \item If we try to simulate one layer at a time,
+            then we'll never get past the first layer because
+            $\Sigma^*$ is infinite.
+        \end{itemize}
+        (In a rough sense, the former is DFS, and the latter is BFS---but
+        this time, they both fail.)
+
+        The fix is similar to how we prove $|\mathbb{Q}| = |\mathbb{N}|$;
+        do a ``zig-zag'' across both $\Sigma^*$ and layers, like so.
+        \begin{center}
+            \frame{\includegraphics[width=0.4\textwidth]{lecture-06/enumerator-proof}}
+        \end{center}
+        More formally, in the $i^{\text{th}}$ step,
+        run $(x_1, x_2, \dots, x_i)$ up to the $i^{\text{th}}$ layer,
+        and do this for all $i \in \mathbb{N}$. ~ $\square$
+    \end{quote}
+    This completes the proof of both directions.
+    (Again, many details omitted.) ~ $\blacksquare$
+\end{proof}
+
+\end{document}
