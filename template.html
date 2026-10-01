@@ -23,6 +23,10 @@
      design; 0.8 renders at 100% browser zoom exactly as 1 did at 80%. */
   --ui-scale: 0.8;
 
+  /* Body text face. Also used for \text{...} inside math, so prose set in a
+     formula matches prose set around it (customize here). */
+  --body-font: "TeX Gyre Termes", "Times New Roman", serif;
+
 
   /* Lecture note page gutters (customize here). */
   --lecture-page-padding-block: 2rem;
@@ -154,7 +158,7 @@ html {
 }
 body {
   background: var(--page-bg);
-  font-family: "TeX Gyre Termes", "Times New Roman", serif;
+  font-family: var(--body-font);
   font-size: calc(14pt * var(--ui-scale));
   line-height: 1.2;
   margin: 0;
@@ -175,6 +179,23 @@ body.lecture-page {
 }
 .katex {
   font-size: 1em;
+}
+/* \text{...} and \textrm{...} are prose inside a formula, but KaTeX sets them
+   in its own Computer Modern, which reads as a different face from the body
+   text around it. \texttt and \textsf name a family on the span itself, so
+   they keep their mono and sans faces; \textit and \textbf only set style and
+   weight, so they pick up this face's italic and bold. Math proper (\mathrm
+   included) stays in KaTeX's fonts. */
+.katex .text,
+.katex .textrm {
+  font-family: var(--body-font);
+  /* KaTeX emits U+00A0 for every space in text mode, and Termes draws that a
+     third of an em wide against a quarter em for its ordinary word space, so
+     \text{...} came out spaced wider than the prose around it. U+00A0 counts
+     as a word separator, so word-spacing trims each one back to the prose
+     width; unlike rewriting the character, it keeps the leading and trailing
+     spaces that several notes rely on to hold \text{...} off adjacent math. */
+  word-spacing: calc(0.25em - 0.333em);
 }
 .katex-display {
   max-width: 100%;
