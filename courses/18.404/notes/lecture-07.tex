@@ -1,0 +1,265 @@
+\lecture{7}
+\title{Decision Problems for Automata and Grammars}
+
+\begin{document}
+
+By the end of this lecture, we will have gone over
+all content necessary for PSET \#2 and our quiz next week.
+
+\subsection{Encodings}
+
+\textbf{Definition.}
+Given \emph{any} object $z$
+(e.g., an automaton, a graph, a string),
+let $\langle z \rangle$ denote an \textbf{encoding} of $z$
+into $\{\str{0}, \str{1}\}^*$.
+Furthermore, let $\langle z_1, z_2, \dots, z_k \rangle$
+denote an encoding of
+$(\langle z_1 \rangle, \langle z_2 \rangle, \dots, \langle z_k \rangle)$
+into a single string.
+
+\begin{remark}
+    Note that $\langle z_1, z_2 \rangle$ should probably not just be
+    the concatenation of $\langle z_1 \rangle$ and $\langle z_2 \rangle$.
+    The encoding must be such that one can read the binary string
+    $\langle z_1, z_2 \rangle$ and recognize that
+    it must be an encoding of two objects,
+    not just $\langle z_3 \rangle$ for some random $z_3$.
+\end{remark}
+
+The details of the encoding are not important---their
+only purpose is to let us take \emph{anything}
+as binary input to a TM.
+
+\subsection{Algorithms on Automata}
+
+Turing machines are really strong---they
+can even run algorithms that answer questions about algorithms!
+
+\begin{problem}
+    Consider the language
+    $A_{\mathrm{DFA}} := \{\langle B, w \rangle \mid
+    B \text{ is a DFA that accepts } w\}$.
+    Show that $A_{\mathrm{DFA}}$ is decidable.
+\end{problem}
+
+\begin{solution}
+    Recall that it suffices to define a TM decider $M$
+    for which $A_{\mathrm{DFA}} = L(M)$.
+    Here's what $M$ does on input $s$.
+    \begin{enumerate}
+        \item Check that $s$ is of the form $\langle B, w \rangle$
+        for some DFA $B$ and some string $w$.
+        \item Simulate $B$ on $w$.
+        (This takes finite time,
+        because $B$ is a \emph{DFA} that takes
+        a \emph{finite} string $w$ as input.)
+        \item In the end, return \textsc{Accept}
+        if $B$ returns \textsc{Accept},
+        and return \textsc{Reject} otherwise.
+    \end{enumerate}
+    And this works, obviously. ~ $\blacksquare$
+\end{solution}
+
+We're \emph{really} abstracting away the details here.
+But because of the Church-Turing thesis---an algorithm
+\emph{is} a Turing machine---we should have confidence
+that working at such a high level of abstraction
+will not cause any issues.
+
+\begin{remark}
+    In case you're not convinced,
+    here's a sketch of how we might implement
+    ``simulate $B$ on $w$'' in a TM.
+    \begin{enumerate}
+        \item Use three tapes to hold each of
+        $\langle B, w \rangle$, the current state $q \in Q$,
+        and $w$ with its head at the current position.
+        \item At each step, do the following:
+        \begin{enumerate}
+            \item Read the symbol $a \in \Sigma$ at tape 3.
+            \item Scan the transition table on tape 1 for the entry
+            whose state matches tape 2 and whose symbol is $a$.
+            \item Write the target state onto tape 2
+            and advance the tape 3 head.
+        \end{enumerate}
+        \item When all of $w$ has been read,
+        scan $F$ on tape 1 for the state on tape 2.
+    \end{enumerate}
+    Perhaps the individual steps above
+    are more believably implementable by a TM.
+\end{remark}
+
+\begin{problem}
+    Consider the language
+    $A_{\mathrm{NFA}} := \{\langle B, w \rangle \mid
+    B \text{ is an NFA that accepts } w\}$.
+    Show that $A_{\mathrm{NFA}}$ is decidable.
+\end{problem}
+
+\begin{solution}
+    Just take a TM decider $M$ that, on input $s$,
+    does the following:
+    \begin{quote}
+        Check that $s$ takes form $\langle B, w \rangle$,
+        then convert the NFA $B$ to a DFA $B'$,
+        then simulate $B'$ on $w$ as in the previous problem.
+        ~ $\blacksquare$
+    \end{quote}
+\end{solution}
+
+\begin{problem}
+    Consider the language
+    $E_{\mathrm{DFA}} := \{\langle B \rangle \mid
+    B \text{ is a DFA and } L(B) = \emptyset\}$.
+    Show that $E_{\mathrm{DFA}}$ is decidable.
+\end{problem}
+
+\begin{solution}
+    This is a path-finding problem---it asks the following:
+    \begin{quote}
+        \textbf{Question.}
+        Is there a path from the start state to any accept state?
+    \end{quote}
+    So we can just return \textsc{Accept} if and only if
+    BFS from the start state finds \emph{no} accept state. ~ $\blacksquare$
+\end{solution}
+
+\begin{problem}
+    Consider the language $EQ_{\mathrm{DFA}} := \{
+        \langle A, B \rangle \mid
+        A \text{ and } B \text{ are DFAs with }
+        L(A) = L(B)
+    \}$.  Show that $EQ_{\mathrm{DFA}}$ is decidable.
+\end{problem}
+
+\begin{solution}
+    This one is less obvious.
+    Recall from our ``closure property constructions'' from
+    \href{/18.404/lectures/1/#regular-operations-and-regular-expressions}{Lecture 1}
+    that
+    \[ L(C) := \left(
+        L(A) \cap \overline{L(B)}
+    \right) \cup \left(
+        \overline{L(A)} \cap L(B)
+    \right) \]
+    for some DFA $C$,
+    where $C$ is \emph{constructible} from the DFAs $A$ and $B$.
+
+    Then we just consider a TM that constructs the DFA $C$,
+    then runs the algorithm used for $E_{\mathrm{DFA}}$.
+    ~ $\blacksquare$
+\end{solution}
+
+\subsection{Algorithms on Grammars and Turing Machines}
+
+Answering questions about grammars is a little harder.
+Here's a useful fact that we'll assume without proof.
+
+\begin{theorem}{Chomsky Normal Form}
+    Any CFG can be expressed as a CFG
+    in which all rules look like $A \rightarrow BC$ or $A \rightarrow a$.
+    Furthermore, there is a TM-executable algorithm
+    for converting any CFG into such a form.
+\end{theorem}
+
+\begin{problem}
+    Consider the language
+    $A_{\mathrm{CFG}} := \{\langle G, w \rangle \mid
+    G \text{ is a CFG that generates } w\}$.
+    Show that $A_{\mathrm{CFG}}$ is decidable.
+\end{problem}
+
+\begin{solution}
+    First check that input $s$ takes form $\langle G, w \rangle$.
+    Then convert $G$ into Chomsky Normal Form.
+
+    The point is that any derivation of $w$ must apply a rule
+    exactly $2|w| - 1$ times.  So it is now feasible
+    to search through all derivations of length $2|w| - 1$
+    and \textsc{Accept} if and only if any derivation yields $w$.
+    ~ $\blacksquare$
+\end{solution}
+
+Here's an interesting corollary to the above point.
+
+\begin{theorem}{CFLs are Decidable}
+    Every context-free language is decidable.
+\end{theorem}
+
+\begin{proof}
+    We must show that if $A$ is a CFL
+    generated by a CFG $G$, then
+    there is a TM $M_G$ that decides $A$.
+    Well, just take $M_G$ to be the TM that,
+    on input $w$, searches through the
+    length-$(2|w| - 1)$ derivations using the
+    Chomsky Normal Form of $G$.
+    ~ $\blacksquare$
+\end{proof}
+
+\begin{problem}
+    Consider the language
+    $E_{\mathrm{CFG}} := \{\langle G \rangle \mid
+    G \text{ is a CFG and } L(G) = \emptyset\}$.
+    Show that $E_{\mathrm{CFG}}$ is decidable. \\
+    For example, the CFG $G$ with only one rule
+    $S \rightarrow aS$ should be in $E_{\mathrm{CFG}}$.
+\end{problem}
+
+\begin{solution}
+    Construct the CFG $G'$ that results from
+    replacing every terminal in $G$ with $\epsilon$.
+    (So $S \rightarrow \str{0}S\str{1}$
+    becomes $S \rightarrow \epsilon S \epsilon$, say.)
+    Then just run the algorithm used for $A_{\mathrm{CFG}}$
+    to check whether $G'$ generates $\epsilon$,
+    and \textsc{Accept} if and only if it does not. ~ $\blacksquare$
+
+    \dots except, the algorithm for $A_{\mathrm{CFG}}$
+    now must search through
+    all derivations of length $2|\epsilon| - 1 = -1$.
+    What does that mean?!
+
+    The reason for this confusion is that
+    Chomsky Normal Form permits one more kind of rule:
+    $S \to \epsilon$, where $S$ is the start variable.
+    So all the algorithm $A_{\mathrm{CFG}}$ is doing
+    is determining whether $S \rightarrow \epsilon$
+    is in the Chomsky Normal Form of $G'$.
+
+    And that's really unsatisfying---all the nontrivial work
+    is offloaded to the conversion of $G'$ into Chomsky Normal Form.
+    But we don't have time to present a better proof; maybe next lecture.
+    ~ $\blacksquare$
+\end{solution}
+
+It turns out that, unlike with DFAs, the following languages
+are \emph{not} decidable.
+\begin{itemize}
+    \item $EQ_{\mathrm{CFG}} := \{\langle G, H \rangle \mid
+    G \text{ and } H \text{ are CFGs with }
+    L(G) = L(H)\}$.
+    \item $A_{\mathrm{TM}} := \{\langle M, w \rangle \mid
+    M \text{ is a TM that accepts } w\}$.
+\end{itemize}
+But if we replace ``decidable'' with ``Turing-recognizable'',
+we find\dots
+
+\begin{problem}
+    Show that $A_{\mathrm{TM}}$ is Turing-recognizable.
+\end{problem}
+
+\begin{solution}
+    After checking that input $s$ takes form $\langle M, w \rangle$,
+    just simulate $M$ on $w$.  In particular,
+    \begin{itemize}
+        \item If $M$ halts and accepts, then return \textsc{Accept}.
+        \item If $M$ halts and rejects, then return \textsc{Reject}.
+        \item If $M$ never halts\dots well, then
+        this Turing machine won't halt, either.
+    \end{itemize}
+    This just works. ~ $\blacksquare$
+\end{solution}
+
+\end{document}
