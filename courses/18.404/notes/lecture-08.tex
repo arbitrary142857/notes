@@ -1,0 +1,114 @@
+\lecture{8}
+\title{Undecidability}
+
+\begin{document}
+
+During the first half hour of class,
+we go over the proofs of $|\mathbb{N}| = |\mathbb{Q}|$
+and $|\mathbb{N}| \neq |\mathbb{R}|$ as a warm-up.
+
+\subsection{$A_{\mathrm{TM}}$ Undecidability}
+
+\begin{theorem}{$A_{\mathrm{TM}}$}
+    Consider the language
+    $A_{\mathrm{TM}} := \{\langle M, w \rangle \mid
+    M \text{ is a TM that accepts } w\}$.
+    Then $A_{\mathrm{TM}}$ is not decidable.
+\end{theorem}
+
+\begin{proof}
+    Suppose FTSOC that some TM $H$ decides $A_{\mathrm{TM}}$.
+    Recall that this means that:
+    \[
+    H \text{ on } \langle M, w \rangle = \begin{cases}
+    \textsc{Accept} & \text{ if } M \text{ accepts } w. \\
+    \textsc{Reject} ~ \textit{ (via halting)} & \text{ if } M \text{ rejects } w.
+    ~ \textit{ (via halting or looping)}
+    \end{cases}
+    \]
+    Now consider the TM $D$ that takes
+    an encoding of a Turing Machine $\langle M \rangle$ as input
+    and does the following:
+    \[
+    D \text{ on } \langle M \rangle
+    = \begin{cases}
+    \textsc{Accept} & \text{ if } H \text{ rejects on }
+    \langle M, \langle M \rangle \rangle. \\
+    \textsc{Reject} & \text{ if } H \text{ accepts on }
+    \langle M, \langle M \rangle \rangle.
+    \end{cases}
+    ~ \iff ~
+    \text{``}D \text{ accepts } \langle M \rangle
+    \text{ iff } M \text{ does not accept } \langle M \rangle\text{.''}
+    \]
+    The contradiction, now, is that the definition above implies
+    that $D$ accepts $\langle D \rangle$ if and only if
+    $D$ rejects $\langle D \rangle$. ~ $\blacksquare$
+\end{proof}
+
+To see how the argument above relates to diagonalization,
+consider the diagram below.
+\begin{center}
+    \frame{\includegraphics[width=0.35\textwidth]{lecture-08/ATM-diagonalization}}
+\end{center}
+The entry in row $M_i$ and column $\langle M_j \rangle$
+indicates whether $M_i$ accepts or rejects on input $\langle M_j \rangle$.
+
+\subsection{Turing-Unrecognizable}
+
+We first require the following lemma.
+
+\begin{theorem}{Decidable vs. Turing-Recognizable}
+    A language $A$ is decidable
+    if and only if $A$ and $\overline{A}$
+    are both Turing-recognizable.
+\end{theorem}
+
+\begin{proof}
+    The $\implies$ direction is easy;
+    combine the following two observations to win.
+    \begin{itemize}
+        \item In general, if $A$ is decidable,
+        then its complement $\overline{A}$ is also decidable---just
+        flip the answer.
+        \item In general, if $A$ is decidable,
+        then $A$ is also Turing-recognizable.
+    \end{itemize}
+    Now for the $\impliedby$ direction.
+    Suppose $R$ recognizes $A$ and $S$ recognizes $\overline{A}$.
+    Note for any input $w$ the following:
+    \[
+    \text{``If $w \in A$, then $R$ must eventually accept.''}
+    ~~~ \parallel ~~~
+    \text{``If $w \in \overline{A}$, then $S$ must eventually accept.''}
+    \]
+    So we run $R$ and $S$ on $w$ in parallel
+    until one of them accepts;
+    return $\textsc{Accept}$ if $R$ accepts,
+    and return $\textsc{Reject}$ if $S$ accepts. ~ $\blacksquare$
+\end{proof}
+
+We can now use this lemma to prove that languages are not Turing-recognizable.
+
+\begin{theorem}{$\overline{A_{\mathrm{TM}}}$}
+    The language
+    $\overline{A_{\mathrm{TM}}} := \{\langle M, w \rangle \mid
+    M \text{ is a TM that does not accept } w\}$
+    is not Turing-recognizable.
+\end{theorem}
+
+\begin{proof}
+    Recall the following:
+    \begin{itemize}
+        \item From the end of
+        \href{/18.404/lectures/7/#algorithms-on-grammars-and-turing-machines}{Lecture 7},
+        we know that $A_{\mathrm{TM}}$ is Turing-recognizable.
+        \item From earlier in this lecture,
+        we know that $A_{\mathrm{TM}}$ is \emph{not} decidable.
+    \end{itemize}
+    The previous theorem now implies
+    that $\overline{A_{\mathrm{TM}}}$ cannot be Turing-recognizable.
+    ~ $\blacksquare$
+\end{proof}
+
+\end{document}
