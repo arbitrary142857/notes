@@ -1,0 +1,437 @@
+<div class="note-widget-box gimbal-box">
+<canvas class="gimbal-canvas" role="img" aria-label="Three-ring gimbal holding an airplane."></canvas>
+
+<div class="gimbal-meter">
+    <div class="gimbal-meter-head">
+        <span>Roll&ndash;yaw independence</span>
+        <output class="gimbal-indep-out">100%</output>
+    </div>
+    <div class="gimbal-meter-track" role="meter" aria-label="Roll-yaw independence" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <span class="gimbal-meter-fill"></span>
+    </div>
+</div>
+
+<p class="gimbal-note" data-locked="false">
+    <span class="gimbal-flag">Gimbal lock</span><span class="gimbal-note-text"></span>
+</p>
+<span class="gimbal-live" aria-live="polite"></span>
+
+<div class="note-widget-controls">
+    <div class="note-widget-row">
+        <label for="gimbal-roll"><span class="gimbal-swatch gimbal-swatch-roll"></span>Roll</label>
+        <input type="range" id="gimbal-roll" class="gimbal-slider-roll" min="-180" max="180" step="1" value="0">
+        <output id="gimbal-roll-out">0&deg;</output>
+    </div>
+    <div class="note-widget-row">
+        <label for="gimbal-pitch"><span class="gimbal-swatch gimbal-swatch-pitch"></span>Pitch</label>
+        <input type="range" id="gimbal-pitch" class="gimbal-slider-pitch" min="-180" max="180" step="1" value="0">
+        <output id="gimbal-pitch-out">0&deg;</output>
+    </div>
+    <div class="note-widget-row">
+        <label for="gimbal-yaw"><span class="gimbal-swatch gimbal-swatch-yaw"></span>Yaw</label>
+        <input type="range" id="gimbal-yaw" class="gimbal-slider-yaw" min="-180" max="180" step="1" value="0">
+        <output id="gimbal-yaw-out">0&deg;</output>
+    </div>
+</div>
+
+<div class="gimbal-buttons">
+    <button type="button" class="note-widget-btn gimbal-lock-btn">Set pitch to 90&deg;</button>
+    <button type="button" class="note-widget-btn gimbal-sweep-btn" aria-pressed="false">Sweep roll &amp; yaw</button>
+    <button type="button" class="note-widget-btn gimbal-reset-btn">Reset</button>
+</div>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const canvas = root.querySelector(".gimbal-canvas");
+    const ctx = canvas.getContext("2d");
+
+    const sliders = {
+        roll: root.querySelector("#gimbal-roll"),
+        pitch: root.querySelector("#gimbal-pitch"),
+        yaw: root.querySelector("#gimbal-yaw"),
+    };
+    const outs = {
+        roll: root.querySelector("#gimbal-roll-out"),
+        pitch: root.querySelector("#gimbal-pitch-out"),
+        yaw: root.querySelector("#gimbal-yaw-out"),
+    };
+    const indepOut = root.querySelector(".gimbal-indep-out");
+    const meter = root.querySelector(".gimbal-meter-track");
+    const meterFill = root.querySelector(".gimbal-meter-fill");
+    const noteEl = root.querySelector(".gimbal-note");
+    const noteText = root.querySelector(".gimbal-note-text");
+    const liveEl = root.querySelector(".gimbal-live");
+    const lockBtn = root.querySelector(".gimbal-lock-btn");
+    const sweepBtn = root.querySelector(".gimbal-sweep-btn");
+    const resetBtn = root.querySelector(".gimbal-reset-btn");
+
+    const COLOR = {
+        roll: "#9e2a1a",
+        pitch: "#5e9e2b",
+        yaw: "#2b6cb0",
+        fuselage: "#2f2a24",
+        wing: "#5d5447",
+        halo: "rgba(178, 106, 0, 0.2)",
+    };
+    // Ring radii, outermost first: yaw carries pitch carries roll.
+    const R_YAW = 1.0;
+    const R_PITCH = 0.82;
+    const R_ROLL = 0.64;
+    const PLANE_SCALE = 0.70;
+    const EYE_DIST = 7.5;
+    const RING_SEG = 96;
+    const LOCK_TOL = 0.04; // |cos(pitch)|: roll and yaw axes within ~2.3 degrees
+    const SWEEP_RATE = 42; // degrees per second
+    const VIEW_HOME = { az: -0.75, el: 0.42 };
+
+    // The airplane, in body coordinates: +x is the nose, +y the left wing, +z up.
+    const PLANE_PARTS = [
+        ["fuselage", [[0.70, 0, 0], [0.30, 0.075, 0], [-0.55, 0.065, 0], [-0.70, 0, 0], [-0.55, -0.065, 0], [0.30, -0.075, 0]]],
+        ["fuselage", [[0.70, 0, 0], [0.30, 0, 0.075], [-0.55, 0, 0.065], [-0.70, 0, 0], [-0.55, 0, -0.05], [0.30, 0, -0.06]]],
+        ["wing", [[0.14, 0, 0], [-0.12, 0.66, 0], [-0.30, 0.66, 0], [-0.20, 0, 0]]],
+        ["wing", [[0.14, 0, 0], [-0.12, -0.66, 0], [-0.30, -0.66, 0], [-0.20, 0, 0]]],
+        ["wing", [[-0.46, 0, 0], [-0.58, 0.26, 0], [-0.68, 0.26, 0], [-0.62, 0, 0]]],
+        ["wing", [[-0.46, 0, 0], [-0.58, -0.26, 0], [-0.68, -0.26, 0], [-0.62, 0, 0]]],
+        ["wing", [[-0.44, 0, 0.02], [-0.60, 0, 0.36], [-0.70, 0, 0.36], [-0.70, 0, 0.02]]],
+    ];
+
+    const angle = { roll: 0, pitch: 0, yaw: 0 }; // degrees, authoritative (sliders quantize)
+    let az = VIEW_HOME.az;
+    let el = VIEW_HOME.el;
+    let sweeping = false;
+    let frameId = 0;
+    let lastFrameTime = 0;
+    let announcedLock = null;
+
+    const rad = (d) => (d * Math.PI) / 180;
+    const degOf = (r) => (r * 180) / Math.PI;
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const wrap = (d) => (((d + 180) % 360) + 360) % 360 - 180;
+    const degText = (v) => (Math.round(v) + "°").replace("-", "−");
+
+    function rotX(a) { const c = Math.cos(a), s = Math.sin(a); return [[1, 0, 0], [0, c, -s], [0, s, c]]; }
+    function rotY(a) { const c = Math.cos(a), s = Math.sin(a); return [[c, 0, s], [0, 1, 0], [-s, 0, c]]; }
+    function rotZ(a) { const c = Math.cos(a), s = Math.sin(a); return [[c, -s, 0], [s, c, 0], [0, 0, 1]]; }
+
+    function mul(A, B) {
+        const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                M[i][j] = A[i][0] * B[0][j] + A[i][1] * B[1][j] + A[i][2] * B[2][j];
+            }
+        }
+        return M;
+    }
+
+    function apply(M, v) {
+        return [
+            M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2],
+            M[1][0] * v[0] + M[1][1] * v[1] + M[1][2] * v[2],
+            M[2][0] * v[0] + M[2][1] * v[1] + M[2][2] * v[2],
+        ];
+    }
+
+    const col = (M, j) => [M[0][j], M[1][j], M[2][j]];
+    const scaled = (v, k) => [v[0] * k, v[1] * k, v[2] * k];
+
+    function camera() {
+        const ce = Math.cos(el), se = Math.sin(el), ca = Math.cos(az), sa = Math.sin(az);
+        const eye = [EYE_DIST * ce * ca, EYE_DIST * ce * sa, EYE_DIST * se];
+        const fwd = [-ce * ca, -ce * sa, -se];
+        // right = normalize(fwd x worldUp), up = right x fwd
+        const rl = Math.hypot(fwd[1], -fwd[0]) || 1;
+        const right = [fwd[1] / rl, -fwd[0] / rl, 0];
+        const up = [
+            right[1] * fwd[2] - right[2] * fwd[1],
+            right[2] * fwd[0] - right[0] * fwd[2],
+            right[0] * fwd[1] - right[1] * fwd[0],
+        ];
+        return { eye, fwd, right, up };
+    }
+
+    function projector(cam, focal, cx, cy) {
+        return function (p) {
+            const vx = p[0] - cam.eye[0], vy = p[1] - cam.eye[1], vz = p[2] - cam.eye[2];
+            const z = Math.max(vx * cam.fwd[0] + vy * cam.fwd[1] + vz * cam.fwd[2], 0.1);
+            const k = focal / z;
+            return {
+                x: cx + (vx * cam.right[0] + vy * cam.right[1] + vz * cam.right[2]) * k,
+                y: cy - (vx * cam.up[0] + vy * cam.up[1] + vz * cam.up[2]) * k,
+                z: z,
+            };
+        };
+    }
+
+    // 1 at the near edge of the scene, 0 at the far edge.
+    const nearness = (z) => clamp((EYE_DIST + 1.3 - z) / 2.6, 0, 1);
+
+    function pushSegment(prims, a, b, color, width) {
+        const z = (a.z + b.z) / 2;
+        const t = nearness(z);
+        prims.push({
+            z: z,
+            paint: function () {
+                ctx.globalAlpha = 0.34 + 0.66 * t;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width * (0.76 + 0.46 * t);
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+            },
+        });
+    }
+
+    function addRing(prims, project, M, radius, local, color, width) {
+        let prev = project(apply(M, local(radius, 0)));
+        for (let i = 1; i <= RING_SEG; i++) {
+            const th = (i / RING_SEG) * Math.PI * 2;
+            const cur = project(apply(M, local(Math.cos(th) * radius, Math.sin(th) * radius)));
+            pushSegment(prims, prev, cur, color, width);
+            prev = cur;
+        }
+    }
+
+    function pushDot(prims, p, color, radius) {
+        const t = nearness(p.z);
+        prims.push({
+            z: p.z,
+            paint: function () {
+                ctx.globalAlpha = 0.34 + 0.66 * t;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, radius * (0.8 + 0.4 * t), 0, Math.PI * 2);
+                ctx.fill();
+            },
+        });
+    }
+
+    function addAxis(prims, project, dir, half, color, width) {
+        const STEPS = 16;
+        const a = scaled(dir, -half);
+        const b = scaled(dir, half);
+        pushDot(prims, project(a), color, width * 1.5);
+        pushDot(prims, project(b), color, width * 1.5);
+        let prev = project(a);
+        for (let i = 1; i <= STEPS; i++) {
+            const s = i / STEPS;
+            const cur = project([a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s, a[2] + (b[2] - a[2]) * s]);
+            pushSegment(prims, prev, cur, color, width);
+            prev = cur;
+        }
+    }
+
+    function addPlane(prims, project, body) {
+        for (const [kind, local] of PLANE_PARTS) {
+            const pts = local.map((q) => project(apply(body, scaled(q, PLANE_SCALE))));
+            let z = 0;
+            for (const q of pts) z += q.z;
+            z /= pts.length;
+            const t = nearness(z);
+            const color = kind === "fuselage" ? COLOR.fuselage : COLOR.wing;
+            prims.push({
+                z: z,
+                paint: function () {
+                    ctx.globalAlpha = 0.5 + 0.5 * t;
+                    ctx.fillStyle = color;
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pts[0].x, pts[0].y);
+                    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                },
+            });
+        }
+    }
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth || 560;
+        const height = Math.round(width * 0.78);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { width: width, height: height };
+    }
+
+    function updateReadouts(p) {
+        outs.roll.textContent = degText(angle.roll);
+        outs.pitch.textContent = degText(angle.pitch);
+        outs.yaw.textContent = degText(angle.yaw);
+
+        // The roll axis is R_z(y)R_y(p)x-hat, so it meets the yaw axis z-hat at an
+        // angle whose sine is |cos p|: that sine is exactly the independence left.
+        const independence = Math.abs(Math.cos(p));
+        const obtuse = degOf(Math.acos(clamp(-Math.sin(p), -1, 1)));
+        const separation = Math.round(Math.min(obtuse, 180 - obtuse));
+        const locked = independence < LOCK_TOL;
+
+        const pct = Math.round(independence * 100);
+        indepOut.textContent = pct + "%";
+        meter.setAttribute("aria-valuenow", String(pct));
+        meterFill.style.width = (independence * 100).toFixed(1) + "%";
+
+        noteEl.setAttribute("data-locked", locked ? "true" : "false");
+        if (locked) {
+            const combo = Math.sin(p) >= 0 ? "r − y" : "r + y";
+            noteText.textContent = "Roll and yaw now turn about the same world axis, so only "
+                + combo + " moves the airplane. Sweep them and it stands still.";
+        } else {
+            noteText.textContent = "The roll axis meets the yaw axis at " + separation
+                + "°. Drive pitch to ±90° to fold the two onto each other.";
+        }
+
+        if (announcedLock !== null && locked !== announcedLock) {
+            liveEl.textContent = locked
+                ? "Gimbal lock: roll and yaw axes aligned."
+                : "Gimbal unlocked.";
+        }
+        announcedLock = locked;
+
+        canvas.setAttribute("aria-label",
+            "Three-ring gimbal at roll " + Math.round(angle.roll) + " degrees, pitch "
+            + Math.round(angle.pitch) + " degrees, yaw " + Math.round(angle.yaw)
+            + " degrees. The red roll axis meets the blue yaw axis at " + separation + " degrees"
+            + (locked ? ", so the gimbal is locked." : "."));
+    }
+
+    function draw() {
+        const r = rad(angle.roll), p = rad(angle.pitch), y = rad(angle.yaw);
+        // Frames nest the way the rings do: R = R_z(y) R_y(p) R_x(r).
+        const yawFrame = rotZ(y);
+        const pitchFrame = mul(yawFrame, rotY(p));
+        const bodyFrame = mul(pitchFrame, rotX(r));
+
+        updateReadouts(p);
+
+        const size = resizeCanvas();
+        const W = size.width, H = size.height;
+        const K = clamp(W / 560, 0.8, 1.5);
+        const project = projector(camera(), H * 2.6, W / 2, H / 2);
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        if (Math.abs(Math.cos(p)) < LOCK_TOL) {
+            const a = project([0, 0, -R_YAW * 1.3]);
+            const b = project([0, 0, R_YAW * 1.3]);
+            ctx.strokeStyle = COLOR.halo;
+            ctx.lineWidth = 16 * K;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+        }
+
+        const prims = [];
+        // Each ring's plane contains its own pivot axis, as a real gimbal's does.
+        addRing(prims, project, yawFrame, R_YAW, (a, b) => [0, a, b], COLOR.yaw, 3.1 * K);
+        addRing(prims, project, pitchFrame, R_PITCH, (a, b) => [a, b, 0], COLOR.pitch, 3.1 * K);
+        addRing(prims, project, bodyFrame, R_ROLL, (a, b) => [a, 0, b], COLOR.roll, 3.1 * K);
+        // Pivot axes, each spanning the ring that carries it.
+        addAxis(prims, project, [0, 0, 1], R_YAW * 1.26, COLOR.yaw, 2.2 * K);
+        addAxis(prims, project, col(yawFrame, 1), R_YAW, COLOR.pitch, 2.2 * K);
+        addAxis(prims, project, col(pitchFrame, 0), R_PITCH, COLOR.roll, 2.2 * K);
+        addPlane(prims, project, bodyFrame);
+
+        prims.sort((u, v) => v.z - u.z);
+        for (const prim of prims) prim.paint();
+        ctx.globalAlpha = 1;
+    }
+
+    function syncSliders() {
+        sliders.roll.value = String(Math.round(angle.roll));
+        sliders.pitch.value = String(Math.round(angle.pitch));
+        sliders.yaw.value = String(Math.round(angle.yaw));
+    }
+
+    function setSweeping(on) {
+        if (sweeping === on) return;
+        sweeping = on;
+        sweepBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        if (on) {
+            lastFrameTime = 0;
+            frameId = requestAnimationFrame(step);
+        } else if (frameId) {
+            cancelAnimationFrame(frameId);
+            frameId = 0;
+        }
+    }
+
+    function step(now) {
+        if (!sweeping) return;
+        const dt = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.05) : 0;
+        lastFrameTime = now;
+        const delta = SWEEP_RATE * dt;
+        // At pitch +90 the orientation depends only on r - y, at -90 only on r + y,
+        // so this is the sweep that freezes the airplane in either locked pose.
+        const sign = Math.sin(rad(angle.pitch)) >= 0 ? 1 : -1;
+        angle.roll = wrap(angle.roll + delta);
+        angle.yaw = wrap(angle.yaw + sign * delta);
+        syncSliders();
+        draw();
+        frameId = requestAnimationFrame(step);
+    }
+
+    for (const name of ["roll", "pitch", "yaw"]) {
+        sliders[name].addEventListener("input", () => {
+            if (name !== "pitch") setSweeping(false);
+            angle[name] = +sliders[name].value;
+            draw();
+        });
+    }
+
+    lockBtn.addEventListener("click", () => {
+        angle.pitch = 90;
+        syncSliders();
+        draw();
+    });
+
+    sweepBtn.addEventListener("click", () => setSweeping(!sweeping));
+
+    resetBtn.addEventListener("click", () => {
+        setSweeping(false);
+        angle.roll = 0;
+        angle.pitch = 0;
+        angle.yaw = 0;
+        az = VIEW_HOME.az;
+        el = VIEW_HOME.el;
+        syncSliders();
+        draw();
+    });
+
+    let dragId = null;
+    let dragX = 0;
+    let dragY = 0;
+    canvas.addEventListener("pointerdown", (e) => {
+        dragId = e.pointerId;
+        dragX = e.clientX;
+        dragY = e.clientY;
+        canvas.setPointerCapture(dragId);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+        if (e.pointerId !== dragId) return;
+        az -= (e.clientX - dragX) * 0.008;
+        el = clamp(el + (e.clientY - dragY) * 0.008, -1.35, 1.35);
+        dragX = e.clientX;
+        dragY = e.clientY;
+        draw();
+    });
+    const endDrag = (e) => {
+        if (e.pointerId !== dragId) return;
+        canvas.releasePointerCapture(dragId);
+        dragId = null;
+    };
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+
+    window.addEventListener("resize", draw);
+    draw();
+})();
+</script>

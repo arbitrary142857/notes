@@ -465,6 +465,110 @@ code.verbatim-inline {
   opacity: 0.5;
   cursor: default;
 }
+.gimbal-canvas {
+  /* Horizontal drags orbit the view; vertical ones still scroll the page. */
+  touch-action: pan-y;
+  cursor: grab;
+}
+.gimbal-canvas:active {
+  cursor: grabbing;
+}
+.gimbal-meter {
+  margin-top: 0.9em;
+}
+.gimbal-meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75em;
+  font-size: 0.92em;
+}
+.gimbal-meter-head output {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.gimbal-meter-track {
+  height: calc(6px * var(--ui-scale));
+  margin-top: 0.3em;
+  background: #ece6dc;
+  box-shadow: 0 0 0 1px #c9c0b2;
+  overflow: hidden;
+}
+.gimbal-meter-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #2f2a24;
+}
+.gimbal-note {
+  margin: 0.65em 0 0;
+  font-size: 0.88em;
+  line-height: 1.45;
+  min-height: 2.55em;
+}
+.gimbal-note .gimbal-flag {
+  display: none;
+}
+.gimbal-note[data-locked="true"] .gimbal-flag {
+  display: inline-block;
+  margin-right: 0.45em;
+  padding: 0.05em 0.45em;
+  background: #b26a00;
+  color: #fff;
+  font-size: 0.9em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.gimbal-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.gimbal-box .note-widget-row label {
+  flex: 0 0 5em;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+}
+.gimbal-swatch {
+  flex: none;
+  width: 0.72em;
+  height: 0.72em;
+  border-radius: 50%;
+}
+.gimbal-swatch-roll {
+  background: #9e2a1a;
+}
+.gimbal-swatch-pitch {
+  background: #5e9e2b;
+}
+.gimbal-swatch-yaw {
+  background: #2b6cb0;
+}
+.note-widget-row input[type="range"].gimbal-slider-roll {
+  accent-color: #9e2a1a;
+}
+.note-widget-row input[type="range"].gimbal-slider-pitch {
+  accent-color: #5e9e2b;
+}
+.note-widget-row input[type="range"].gimbal-slider-yaw {
+  accent-color: #2b6cb0;
+}
+.gimbal-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin-top: 1em;
+}
+.gimbal-box .note-widget-btn[aria-pressed="true"] {
+  background: #2f2a24;
+  border-color: #2f2a24;
+  color: #fff;
+}
 section.env {
   margin: 1em 0;
 }

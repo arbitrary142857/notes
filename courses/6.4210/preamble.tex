@@ -48,11 +48,14 @@
 
 \newcommand{\extended}[1]{\overleftrightarrow{#1}}
 \newcommand{\rightray}[1]{\overrightarrow{#1}}
+\renewcommand{\vec}[1]{\overrightarrow{#1}}
 \newcommand{\horizontal}{
 \begin{center}
 \line(1,0){400}
 \end{center}
 }
+
+\newcommand{\str}[1]{\mathtt{#1}}
 
 \DeclareMathOperator{\lcm}{lcm}
 \DeclareMathOperator{\im}{im}
@@ -60,21 +63,34 @@
 \DeclareMathOperator{\Var}{Var}
 \DeclareMathOperator{\Real}{Re}
 
-\newenvironment{problem}[1]{\noindent \color[HTML]{C96600} \textbf{Problem. (#1) }}{\color{black}}
+\newenvironment{theorem}[1]{\noindent \color[HTML]{483393} \textbf{Theorem. (#1) }}{\color{black}}
 
-\newenvironment{solution}[1]{\noindent \color[HTML]{295A25} \textbf{Solution. (#1) }}{\color{black}}
+\newenvironment{problem}{\noindent \color[HTML]{9F54A1} \textbf{Problem.}}{\color{black}}
 
-\newenvironment{solution*}[1]{\noindent \color[HTML]{295A25} \textbf{Solution. (#1) }}{\color{black} \vspace{-0.6cm}}
+\newenvironment{solution}{
+\color[HTML]{BA8ABE}
+\textit{Solution:}}
+{
+\color{black}
+}
+
+\newenvironment{solution*}{
+\color[HTML]{BA8ABE}
+\textit{Solution:}}
+{
+\color{black}
+\vspace{-0.6cm}
+}
 
 \newenvironment{proof}{
-\color[HTML]{5B1E85}
+\color[HTML]{7E6FB1}
 \textit{Proof:}}
 {
 \color{black}
 }
 
 \newenvironment{proof*}{
-\color[HTML]{5B1E85}
+\color[HTML]{7E6FB1}
 \textit{Proof:}}
 {
 \color{black}
