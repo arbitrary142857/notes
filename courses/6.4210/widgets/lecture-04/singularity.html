@@ -1,0 +1,381 @@
+<div class="note-widget-box arm-box sing-box">
+<div class="arm-layout">
+<canvas class="arm-canvas sing-canvas" role="img" aria-label="Two-link planar arm with its tip velocity ellipse."></canvas>
+<div class="arm-panel">
+
+<p class="arm-legend">
+    <span><span class="arm-swatch sing-swatch-ellipse"></span><span>reachable, |d<i>q</i>| &le; 1</span></span>
+    <span><span class="arm-swatch sing-swatch-want"></span><span>desired d<i>X</i></span></span>
+    <span><span class="arm-swatch sing-swatch-got"></span><span>achieved <i>J</i>&thinsp;d<i>q</i></span></span>
+</p>
+
+<div class="sing-bars">
+    <div class="sing-bar">
+        <span class="sing-bar-name">d<i>q</i><sub>0</sub></span>
+        <span class="sing-bar-track"><span class="sing-bar-fill sing-bar-q0"></span></span>
+        <output class="sing-bar-out sing-q0-out">0</output>
+    </div>
+    <div class="sing-bar">
+        <span class="sing-bar-name">d<i>q</i><sub>1</sub></span>
+        <span class="sing-bar-track"><span class="sing-bar-fill sing-bar-q1"></span></span>
+        <output class="sing-bar-out sing-q1-out">0</output>
+    </div>
+    <div class="sing-bar sing-bar-err">
+        <span class="sing-bar-name">Tip error</span>
+        <span class="sing-bar-track"><span class="sing-bar-fill sing-bar-e"></span></span>
+        <output class="sing-bar-out sing-err-out">0</output>
+    </div>
+</div>
+<span class="arm-live" aria-live="polite"></span>
+
+<div class="note-widget-controls">
+    <div class="note-widget-row">
+        <label for="sing-q0"><span><i>q</i><sub>0</sub></span></label>
+        <input type="range" id="sing-q0" min="-180" max="180" step="1" value="30">
+        <output id="sing-q0-out">30&deg;</output>
+    </div>
+    <div class="note-widget-row">
+        <label for="sing-q1"><span><i>q</i><sub>1</sub></span></label>
+        <input type="range" id="sing-q1" min="-180" max="180" step="1" value="40">
+        <output id="sing-q1-out">40&deg;</output>
+    </div>
+    <div class="note-widget-row">
+        <label for="sing-dir"><span>d<i>X</i> dir</span></label>
+        <input type="range" id="sing-dir" min="-180" max="180" step="1" value="0">
+        <output id="sing-dir-out">0&deg;</output>
+    </div>
+    <div class="note-widget-row">
+        <label for="sing-lambda"><span>Damping &lambda;</span></label>
+        <input type="range" id="sing-lambda" min="0" max="0.2" step="0.01" value="0">
+        <output id="sing-lambda-out">0.00</output>
+    </div>
+</div>
+<p class="sing-formula"></p>
+
+<div class="arm-buttons">
+    <button type="button" class="note-widget-btn sing-sweep-btn" aria-pressed="false">Sweep <i>q</i><sub>1</sub> through 0&deg;</button>
+    <button type="button" class="note-widget-btn sing-reset-btn">Reset</button>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const canvas = root.querySelector(".sing-canvas");
+    const ctx = canvas.getContext("2d");
+
+    const sliders = {
+        q0: root.querySelector("#sing-q0"),
+        q1: root.querySelector("#sing-q1"),
+        dir: root.querySelector("#sing-dir"),
+        lambda: root.querySelector("#sing-lambda"),
+    };
+    const outs = {
+        q0: root.querySelector("#sing-q0-out"),
+        q1: root.querySelector("#sing-q1-out"),
+        dir: root.querySelector("#sing-dir-out"),
+        lambda: root.querySelector("#sing-lambda-out"),
+    };
+    const barFill = [root.querySelector(".sing-bar-q0"), root.querySelector(".sing-bar-q1")];
+    const barOut = [root.querySelector(".sing-q0-out"), root.querySelector(".sing-q1-out")];
+    const errFill = root.querySelector(".sing-bar-e");
+    const errOut = root.querySelector(".sing-err-out");
+    const formulaEl = root.querySelector(".sing-formula");
+    const liveEl = root.querySelector(".arm-live");
+    const sweepBtn = root.querySelector(".sing-sweep-btn");
+    const resetBtn = root.querySelector(".sing-reset-btn");
+
+    const COLOR = {
+        A: "#3a9e4a",
+        B: "#2b6cb0",
+        C: "#c0392b",
+        link: "#2f2a24",
+        linkFill: "#ffffff",
+        grid: "#e6e0d6",
+        axis: "#b8aea2",
+        ellipse: "rgba(178, 106, 0, 0.16)",
+        ellipseEdge: "#b26a00",
+        want: "#8a8178",
+        got: "#2f2a24",
+        flag: "#b26a00",
+    };
+    const DEFAULTS = { q0: 30, q1: 40, dir: 0, lambda: 0 };
+    const L = 1;
+    const SPEED = 1; // |dX| requested at the tip
+    const ARROW_SCALE = 0.55; // world units drawn per unit of tip velocity
+    const VIEW_HALF_H = 2.6;
+    const BAR_MAX = 10; // rad/s at which a joint-speed bar fills
+    const RANK_TOL = 1e-9; // squared singular value treated as zero
+    const NEAR_TOL = 0.05; // smallest singular value flagged as "near" singular
+    const SWEEP_LIMIT = 40; // degrees
+    const SWEEP_PERIOD = 9; // seconds per full back-and-forth
+
+    // Authoritative joint angle q1 in degrees; the slider only shows it rounded,
+    // so the sweep can move continuously.
+    let q1 = DEFAULTS.q1;
+    let sweeping = false;
+    let sweepPhase = 0;
+    let frameId = 0;
+    let lastFrameTime = 0;
+    let announced = null;
+
+    const rad = (d) => (d * Math.PI) / 180;
+    const degText = (v) => (Math.round(v) + "°").replace("-", "−");
+    const numText = (v, digits) => (Math.abs(v) < 0.5 * Math.pow(10, -digits) ? 0 : v).toFixed(digits).replace("-", "−");
+
+    function kinematics(q0, q1) {
+        const B = [L * Math.cos(q0), L * Math.sin(q0)];
+        const C = [B[0] + L * Math.cos(q0 + q1), B[1] + L * Math.sin(q0 + q1)];
+        // Translational rows of the geometric Jacobian: J = [[a, b], [c, d]].
+        const J = [[-C[1], -(C[1] - B[1])], [C[0], C[0] - B[0]]];
+        return { B, C, J };
+    }
+
+    // Eigendecomposition of the symmetric 2 x 2 matrix J J^T: its eigenvectors
+    // are the ellipse axes u_i, its eigenvalues the squared singular values.
+    function svd(J) {
+        const p = J[0][0] * J[0][0] + J[0][1] * J[0][1];
+        const r = J[1][0] * J[1][0] + J[1][1] * J[1][1];
+        const s = J[0][0] * J[1][0] + J[0][1] * J[1][1];
+        const mean = (p + r) / 2;
+        const half = Math.hypot((p - r) / 2, s);
+        const theta = 0.5 * Math.atan2(2 * s, p - r);
+        const u1 = [Math.cos(theta), Math.sin(theta)];
+        const u2 = [-u1[1], u1[0]];
+        return { u: [u1, u2], s2: [mean + half, Math.max(mean - half, 0)] };
+    }
+
+    // dq = J^T (J J^T + lambda I)^{-1} dX, applied along each axis u_i.
+    // With lambda = 0 and a zero singular value, that axis is dropped,
+    // which is what the (SVD) pseudo-inverse does at a singularity.
+    function solve(J, dec, dX, lambda) {
+        const y = [0, 0];
+        for (let i = 0; i < 2; i++) {
+            const denom = dec.s2[i] + lambda;
+            if (denom < RANK_TOL) continue;
+            const c = (dec.u[i][0] * dX[0] + dec.u[i][1] * dX[1]) / denom;
+            y[0] += c * dec.u[i][0];
+            y[1] += c * dec.u[i][1];
+        }
+        return [J[0][0] * y[0] + J[1][0] * y[1], J[0][1] * y[0] + J[1][1] * y[1]];
+    }
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth || 560;
+        const height = width;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { width, height };
+    }
+
+    function arrow(from, to, color, width, dashed) {
+        const dx = to[0] - from[0], dy = to[1] - from[1];
+        const len = Math.hypot(dx, dy);
+        if (len < 1) return;
+        const head = Math.min(4 * width, len * 0.45);
+        const ux = dx / len, uy = dy / len;
+        const bx = to[0] - ux * head, by = to[1] - uy * head;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = width;
+        ctx.setLineDash(dashed ? [5, 4] : []);
+        ctx.beginPath();
+        ctx.moveTo(from[0], from[1]);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(to[0], to[1]);
+        ctx.lineTo(bx - uy * head * 0.55, by + ux * head * 0.55);
+        ctx.lineTo(bx + uy * head * 0.55, by - ux * head * 0.55);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function updateReadouts(st) {
+        outs.q0.textContent = degText(st.q0d);
+        outs.q1.textContent = degText(st.q1d);
+        sliders.q1.value = String(Math.round(st.q1d));
+        outs.dir.textContent = degText(st.dird);
+        outs.lambda.textContent = st.lambda.toFixed(2);
+
+        for (let i = 0; i < 2; i++) {
+            const v = st.dq[i];
+            barOut[i].textContent = numText(v, 2);
+            barFill[i].style.width = (Math.min(Math.abs(v) / BAR_MAX, 1) * 100).toFixed(1) + "%";
+            barFill[i].setAttribute("data-over", Math.abs(v) > BAR_MAX ? "true" : "false");
+        }
+
+        errOut.textContent = numText(st.err, 2);
+        errFill.style.width = (Math.min(st.err / SPEED, 1) * 100).toFixed(1) + "%";
+
+        formulaEl.innerHTML = st.lambda > 0
+            ? "d<i>q</i> = <i>J</i><sup>⊤</sup>(<i>JJ</i><sup>⊤</sup> + " + st.lambda.toFixed(2)
+                + "<i>I</i>)<sup>−1</sup>d<i>X</i>: joint speeds stay below "
+                + numText(SPEED / (2 * Math.sqrt(st.lambda)), 2) + ", but the tip may miss."
+            : "&lambda; = 0 is the plain pseudo-inverse d<i>q</i> = <i>J</i><sup>+</sup>d<i>X</i>: "
+                + "exact, but joint speeds blow up near a singularity.";
+
+        if (announced !== null && st.singular !== announced) {
+            liveEl.textContent = st.singular ? "Singular configuration." : "Left the singularity.";
+        }
+        announced = st.singular;
+
+        canvas.setAttribute("aria-label",
+            "Two-link arm at q0 = " + st.q0d + " degrees, q1 = " + st.q1d
+            + " degrees. Joint speeds " + numText(st.dq[0], 2) + " and " + numText(st.dq[1], 2)
+            + " radians per second" + (st.singular ? "; the arm is singular." : "."));
+    }
+
+    function draw() {
+        const st = {
+            q0d: +sliders.q0.value,
+            q1d: q1,
+            dird: +sliders.dir.value,
+            lambda: +sliders.lambda.value,
+        };
+        const k = kinematics(rad(st.q0d), rad(st.q1d));
+        // dX is measured from the outward radial direction A -> C.
+        const radial = Math.atan2(k.C[1], k.C[0]);
+        const phi = radial + rad(st.dird);
+        st.dX = [SPEED * Math.cos(phi), SPEED * Math.sin(phi)];
+        st.dec = svd(k.J);
+        st.dq = solve(k.J, st.dec, st.dX, st.lambda);
+        st.got = [
+            k.J[0][0] * st.dq[0] + k.J[0][1] * st.dq[1],
+            k.J[1][0] * st.dq[0] + k.J[1][1] * st.dq[1],
+        ];
+        st.err = Math.hypot(st.got[0] - st.dX[0], st.got[1] - st.dX[1]);
+        st.singular = st.dec.s2[1] < RANK_TOL;
+        st.near = Math.sqrt(st.dec.s2[1]) < NEAR_TOL;
+        updateReadouts(st);
+
+        const { width: W, height: H } = resizeCanvas();
+        const S = H / 2 / VIEW_HALF_H;
+        const K = Math.min(Math.max(W / 560, 0.8), 1.5);
+        const px = (p) => [W / 2 + p[0] * S, H / 2 - p[1] * S];
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        ctx.strokeStyle = COLOR.grid;
+        ctx.lineWidth = 1;
+        for (let g = -Math.floor(W / 2 / S); g <= W / 2 / S; g++) {
+            ctx.beginPath(); ctx.moveTo(W / 2 + g * S, 0); ctx.lineTo(W / 2 + g * S, H); ctx.stroke();
+        }
+        for (let g = -Math.floor(VIEW_HALF_H); g <= VIEW_HALF_H; g++) {
+            ctx.beginPath(); ctx.moveTo(0, H / 2 - g * S); ctx.lineTo(W, H / 2 - g * S); ctx.stroke();
+        }
+        ctx.strokeStyle = COLOR.axis;
+        ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+
+        const A = px([0, 0]), B = px(k.B), C = px(k.C);
+
+        // Velocity ellipse {J dq : |dq| <= 1}: semi-axes sigma_i u_i.
+        const ax = st.dec.u[0], s1 = Math.sqrt(st.dec.s2[0]), s2 = Math.sqrt(st.dec.s2[1]);
+        ctx.save();
+        ctx.translate(C[0], C[1]);
+        ctx.rotate(-Math.atan2(ax[1], ax[0]));
+        ctx.beginPath();
+        ctx.ellipse(0, 0, Math.max(s1 * ARROW_SCALE * S, 0.5), Math.max(s2 * ARROW_SCALE * S, 0.5), 0, 0, Math.PI * 2);
+        ctx.fillStyle = COLOR.ellipse;
+        ctx.fill();
+        ctx.strokeStyle = COLOR.ellipseEdge;
+        ctx.lineWidth = 1.6 * K;
+        ctx.stroke();
+        ctx.restore();
+
+        for (const [p, q] of [[A, B], [B, C]]) {
+            ctx.strokeStyle = COLOR.link;
+            ctx.lineWidth = 15 * K;
+            ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+            ctx.strokeStyle = COLOR.linkFill;
+            ctx.lineWidth = 11 * K;
+            ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+        }
+        for (const [p, color] of [[A, COLOR.A], [B, COLOR.B], [C, COLOR.C]]) {
+            ctx.fillStyle = color;
+            ctx.strokeStyle = COLOR.link;
+            ctx.lineWidth = 1.5 * K;
+            ctx.beginPath(); ctx.arc(p[0], p[1], 6 * K, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        }
+
+        const tip = (v) => px([k.C[0] + v[0] * ARROW_SCALE, k.C[1] + v[1] * ARROW_SCALE]);
+        arrow(C, tip(st.dX), COLOR.want, 2.2 * K, true);
+        arrow(C, tip(st.got), COLOR.got, 2.8 * K, false);
+
+        if (st.near) {
+            const text = st.singular ? "SINGULAR" : "NEAR SINGULARITY";
+            ctx.font = `600 ${Math.round(12 * K)}px system-ui, -apple-system, sans-serif`;
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            const pad = 6 * K, h = 20 * K, w = ctx.measureText(text).width + 2 * pad;
+            ctx.fillStyle = COLOR.flag;
+            ctx.fillRect(10 * K, 10 * K, w, h);
+            ctx.fillStyle = "#fff";
+            ctx.fillText(text, 10 * K + pad, 10 * K + h / 2);
+        }
+    }
+
+    function syncSliders(values) {
+        for (const name in values) sliders[name].value = String(values[name]);
+        q1 = values.q1;
+    }
+
+    // q1 = LIMIT * sin^3(phase): smooth everywhere, and it lingers near 0
+    // so the blow-up is easy to watch.
+    const sweepAngle = (phase) => SWEEP_LIMIT * Math.pow(Math.sin(phase), 3);
+
+    function setSweeping(on) {
+        if (sweeping === on) return;
+        sweeping = on;
+        sweepBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        if (on) {
+            lastFrameTime = 0;
+            const start = Math.max(-SWEEP_LIMIT, Math.min(SWEEP_LIMIT, q1));
+            const a = Math.asin(Math.cbrt(start / SWEEP_LIMIT));
+            // Head toward 0 first.
+            sweepPhase = start > 0 ? Math.PI - a : a;
+            frameId = requestAnimationFrame(step);
+        } else if (frameId) {
+            cancelAnimationFrame(frameId);
+            frameId = 0;
+        }
+    }
+
+    function step(now) {
+        if (!sweeping) return;
+        const dt = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.05) : 0;
+        lastFrameTime = now;
+        sweepPhase += (2 * Math.PI * dt) / SWEEP_PERIOD;
+        q1 = sweepAngle(sweepPhase);
+        draw();
+        frameId = requestAnimationFrame(step);
+    }
+
+    for (const name of ["q0", "q1", "dir", "lambda"]) {
+        sliders[name].addEventListener("input", () => {
+            if (name === "q1") {
+                setSweeping(false);
+                q1 = +sliders.q1.value;
+            }
+            draw();
+        });
+    }
+    sweepBtn.addEventListener("click", () => setSweeping(!sweeping));
+    resetBtn.addEventListener("click", () => {
+        setSweeping(false);
+        syncSliders(DEFAULTS);
+        draw();
+    });
+
+    window.addEventListener("resize", draw);
+    draw();
+})();
+</script>

@@ -61,7 +61,7 @@ Some observations about the above:
     $\{{}^0X^b(q_0), {}^1X^c(q_1)\}$
     are rotations parametrized by real numbers $(q_0, q_1)$.
     \item The superscripts on the RHS
-    reads out a path $a \to 0 \to b \to 1 \to c \to 2$,
+    read out a path $a \to 0 \to b \to 1 \to c \to 2$,
     which cleanly collapses to the LHS ${}^aX^2$.
 \end{itemize}
 
@@ -87,73 +87,6 @@ our Kuka IIWA manipulator---this is not a feasible approach.
 
 Next lecture, we'll discuss \emph{numerical} approaches
 for \emph{estimating} a solution to an inverse kinematics problem.
-
-\subsection{Monogram Velocities}
-
-Before moving on to differential kinematics,
-we must discuss how we represent
-velocity in monogram notation.
-
-\textbf{Definition.}
-The \textbf{spatial velocity} of $B$ relative to $A$ is:
-\[ \frac{\mathrm{d}}{\mathrm{d}t} {}^AX^B_C
-= {}^AV^B_C = \begin{bmatrix}
-{}^A\omega^B_C \\ {}^Av^B_C
-\end{bmatrix}
-= \begin{bmatrix}
-{}^A\omega^B_{C, x} \\
-{}^A\omega^B_{C, y} \\
-{}^A\omega^B_{C, z} \\
-{}^Av^B_{C, x} \\
-{}^Av^B_{C, y} \\
-{}^Av^B_{C, z}
-\end{bmatrix} \in \mathbb{R}^6, \]
-where ${}^A\omega^B_C$ is angular velocity,
-and ${}^Av^B_C$ is translational velocity.
-
-\begin{remark}
-    Note that angular velocity ${}^A\omega^B_C$
-    is simply a three-number vector---as in 8.01,
-    it points along the axis of rotation,
-    with magnitude given by the speed.
-    So ${}^AV^B_C$ is a six-number vector.
-\end{remark}
-
-\begin{theorem}{Monogram Velocities}
-    The following identities are all true.
-    \begin{itemize}
-        \item \emph{(Change of Frame)} We have
-        ${}^Av^B_G = {}^GR^F {}^Av^B_F$ and
-        ${}^A\omega^B_G = {}^GR^F {}^A\omega^B_F$.
-        \item \emph{(Additivity)} We have
-        ${}^A\omega^B_F + {}^B\omega^C_F = {}^A\omega^C_F$ and
-        ${}^Av^C_F = {}^Av^B_F + {}^Bv^C_F
-        + {}^A\omega^B_F \times {}^Bp^C_F$.
-        \item \emph{(Inverse)} We have
-        ${}^A\omega^B_F = -{}^B\omega^A_F$ and
-        ${}^Av^B_F = -{}^Bv^A_F -
-        {}^A\omega^B_F \times {}^Bp^A_F$.
-    \end{itemize}
-\end{theorem}
-
-\begin{proof}
-    The simplified 2D Kuka IIWA example from earlier
-    is a prototype to use when
-    thinking through these identities.
-
-    For the identity ${}^Av^C_F = {}^Av^B_F + {}^Bv^C_F
-    + {}^A\omega^B_F \times {}^Bp^C_F$, for example,
-    recall that ${}^Bv^C_F$ only captures
-    the movement of joint $C$ in the frame of joint $B$.
-    So if only joint $B$ is rotating, then ${}^Bv^C_F$ is zero,
-    even though $C$ is moving in the frame of $A$.
-
-    To account for the movement of joint $C$ caused by
-    the rotation of frame $B$, we must add the term
-    ${}^A\omega^B_F \times {}^Bp^C_F$.
-    (You can check that the proportionalities make sense.)
-    ~ $\blacksquare$
-\end{proof}
 
 \subsection{Differential Kinematics: Analytic Jacobian}
 
@@ -193,6 +126,12 @@ It then follows that $J^B(q)$ and $\mathrm{d}q$ look like:
 \mathrm{d}q_1 \\ \mathrm{d}q_2 \\ \vdots \\ \mathrm{d}q_k
 \end{bmatrix} \in \mathbb{R}^k. \]
 
+For the simplified 2D Kuka IIWA from earlier (with $L = 1$),
+(warning: AI-generated) widget below shows how $J^C(q)$ depends on
+the choice of orientation parametrization.
+
+\includewidget{lecture-04/analytic-jacobian}
+
 \subsection{Differential Kinematics: Geometric Jacobian}
 
 There's a nice simplifying trick, though.
@@ -202,17 +141,34 @@ translational and rotational velocity combined)
 has a very natural $6$-variable parametrization:
 the spatial velocity.
 
+\textbf{Definition.}
+The \textbf{spatial velocity} of $B$ relative to $A$ is:
+\[ \frac{\mathrm{d}}{\mathrm{d}t} {}^AX^B_F
+= {}^AV^B_F = \begin{bmatrix}
+{}^A\omega^B_F \\ {}^Av^B_F
+\end{bmatrix}
+= \begin{bmatrix}
+{}^A\omega^B_{F, x} \\
+{}^A\omega^B_{F, y} \\
+{}^A\omega^B_{F, z} \\
+{}^Av^B_{F, x} \\
+{}^Av^B_{F, y} \\
+{}^Av^B_{F, z}
+\end{bmatrix} \in \mathbb{R}^6, \]
+where ${}^A\omega^B_F \in \mathbb{R}^3$ is angular velocity,
+and ${}^Av^B_F \in \mathbb{R}^3$ is translational velocity.
+
 \begin{remark}
-    Recall that ${}^A\omega^B_C \in \mathbb{R}^3$
+    Recall that ${}^A\omega^B_F \in \mathbb{R}^3$
     points along the axis of rotation with magnitude given by
     the angular speed.  Equivalently, if
-    \[ {}^A\omega^B_C = \begin{bmatrix} {}^A\omega^B_{C, x} \\
-    {}^A\omega^B_{C, y} \\
-    {}^A\omega^B_{C, z} \end{bmatrix} \in \mathbb{R}^3, \]
+    \[ {}^A\omega^B_F = \begin{bmatrix} {}^A\omega^B_{F, x} \\
+    {}^A\omega^B_{F, y} \\
+    {}^A\omega^B_{F, z} \end{bmatrix} \in \mathbb{R}^3, \]
     that means the rotation is equivalent to the composition of
-    a rotation with speed ${}^A\omega^B_{C, x}$ about the $x$-axis,
-    a rotation with speed ${}^A\omega^B_{C, y}$ about the $y$-axis,
-    and a rotation with speed ${}^A\omega^B_{C, z}$ about the $z$-axis.
+    a rotation with speed ${}^A\omega^B_{F, x}$ about the $x$-axis,
+    a rotation with speed ${}^A\omega^B_{F, y}$ about the $y$-axis,
+    and a rotation with speed ${}^A\omega^B_{F, z}$ about the $z$-axis.
 \end{remark}
 
 Then $J^B(q)$ is not very hard to compute;
@@ -243,11 +199,8 @@ independent of how we internally represent
 the end effector's orientation.
 
 \begin{problem}
-    Recall the example from earlier,
+    Recall the simplified 2D Kuka IIWA from earlier,
     specifically in the case where both rods have length $L = 1$.
-    \begin{center}
-        \frame{\includegraphics[width=0.3\textwidth]{lecture-04/forward-kinematics.png}}
-    \end{center}
     What is the geometric Jacobian $J^C(q)$ of the tip $C$?
 \end{problem}
 
@@ -264,7 +217,12 @@ the end effector's orientation.
     0 & 0
     \end{bmatrix} \in \mathbb{R}^{6 \times 2}.
     \]
-    Check this for yourself.
+    Check this for yourself;
+    you can also play around with the
+    (warning: AI-generated) widget below.
+
+    \includewidget{lecture-04/jacobian}
+
     Note that the angular speed is not factored into $J^C(q)$,
     because it's factored into $\mathrm{d}q$ instead. ~ $\blacksquare$
 \end{solution}
@@ -272,7 +230,7 @@ the end effector's orientation.
 You can also check for yourself that
 the dimensions of the geometric Jacobian of the IIWA are $6 \times 7$.
 
-\subsection{Inverse Differential Kinematics}
+\subsection{Inverse Differential Kinematics: Pseudo-Inverse}
 
 Inverse differential kinematics is actually not so hard;
 from the relationship $\mathrm{d}X^B = J^B(q) \mathrm{d}q$,
@@ -292,28 +250,49 @@ The fix, in general, is to take inspiration from
     $\mathbb{X}\beta \in \mathbb{R}^n$ is as close to $Y \in \mathbb{R}^n$
     as the column space of $\mathbb{X}$ allows.
     \begin{itemize}
-        \item As computed in 18.650, the desired parameter is
+        \item There, $\mathbb{X}$ has \textcolor{purple}{full column rank,}
+        but with $n > k$ there is usually no exact solution to $\mathbb{X}\beta = Y$.
+        \item In this case, the desired parameter is
         $\beta = (\mathbb{X}^{\top}\mathbb{X})^{-1}\mathbb{X}^{\top}Y$.
     \end{itemize}
     \item In this class, we seek an input $\mathrm{d}q$ such that
-    $J \cdot \mathrm{d}q$ is as close to $\mathrm{d} X^B$
+    $J \mathrm{d}q$ is as close to $\mathrm{d} X^B$
     as the column space of $J$ allows.
     \begin{itemize}
-        \item Expectedly, the desired input is
-        $\mathrm{d}q = (J^{\top}J)^{-1}J^{\top} \mathrm{d} X^B$.
+        \item Here, $J$ usually has \textcolor{purple}{full row rank,}
+        meaning exact solutions $\mathrm{d}q$ to
+        $J\mathrm{d}q = \mathrm{d}X^B$ exist (many, when $k > 6$).
+        \item In this case, the desired input is the exact solution
+        with $\|\mathrm{d}q\|$ minimized, and it looks like
+        $\mathrm{d}q = J^{\top}(JJ^{\top})^{-1} \mathrm{d} X^B$.
     \end{itemize}
 \end{itemize}
 
 \textbf{Definition.}
-Given a matrix $J$ with full row rank, the \textbf{Moore-Penrose Pseudo-Inverse} of $J$
-is given by $J^+ := J^{\top}(JJ^{\top})^{-1}$.
+The \textbf{Moore-Penrose Pseudo-Inverse} $J^+$ of a matrix $J$
+has two versions, depending on the rank of $J$.
+\begin{itemize}
+    \item If $J$ has \textcolor{purple}{full column rank} (as in regression),
+    then $J^+ := (J^{\top}J)^{-1}J^{\top}$, a left inverse ($J^+J = I$).
+    \item If $J$ has \textcolor{purple}{full row rank} (as in this class),
+    then $J^+ := J^{\top}(JJ^{\top})^{-1}$, a right inverse ($JJ^+ = I$).
+\end{itemize}
 
-\begin{remark}
-    When $J$ instead has full column rank (as in regression),
-    $J^+ = (J^{\top}J)^{-1}J^{\top}$;
-    the two formulas agree only when $J$ is square and invertible.
-    For the $6 \times 7$ IIWA Jacobian, $J^{\top}J$ is never invertible.
-\end{remark}
+\textbf{Example.}
+Some examples of whether $J$ has full column rank
+or full row rank.
+\begin{itemize}
+    \item For the Kuka IIWA, the geometric Jacobian is $6 \times 7$,
+    so it is usually full row rank, and we use $J^+ := J^{\top}(JJ^{\top})^{-1}$.
+    \item For the simplified 2D Kuka IIWA,
+    the geometric Jacobian is $6 \times 2$,
+    so it is full column rank, and we use $J^+ = (J^{\top}J)^{-1}J^{\top}$.
+    \begin{itemize}
+        \item \dots but if we isolate only the relevant rows
+        $v_x$ and $v_y$, the geometric Jacobian is $2 \times 2$,
+        and now $J^+ = J^{-1}$ plainly.
+    \end{itemize}
+\end{itemize}
 
 And here's the property of $J^+$ that makes it so useful,
 as in both 18.650 and this class.
@@ -331,6 +310,8 @@ as in both 18.650 and this class.
     \end{itemize}
 \end{theorem}
 
+\subsection{Inverse Differential Kinematics: Singularities and Damping}
+
 But there's still an issue with the pseudo-inverse
 as stated above; its values can explode near \textbf{singularities}.
 
@@ -345,14 +326,27 @@ when considering only the gripper's $(x, y)$ velocity,
 one singularity occurs when $q_1 = 0$:
 both joints can then only move the gripper perpendicular to the arm.
 
+Observe this in the (warning: AI-generated) widget below.
+When $q_1$ approaches $0$, and the
+desired $\mathrm{d}X$ points outside the shaded ellipse,
+the computed $(\mathrm{d}q_0, \mathrm{d}q_1)$ values blow up.
+
+\includewidget{lecture-04/singularity}
+
 The fix for this problem is also inspired by 18.650;
-use \textbf{damped pseudo-inverse} (or equivalently,
-add a ridge regression term).
+it's equivalent to adding a ridge regression term.
+
+\textbf{Definition.}
+The \textbf{damped pseudo-inverse} of $J$
+(for any $J$, given $\lambda > 0$) is:
 \[
     J^* = J^{\top}(JJ^{\top} + \lambda I)^{-1}.
 \]
 The $\lambda I$ term prevents things from exploding
 when $JJ^{\top}$ is close to zero in some directions.
+You can also observe this using the widget above;
+the $\lambda I$ sacrifices output accuracy
+in favor of controlled $(\mathrm{d}q_0, \mathrm{d}q_1)$ values.
 
 \begin{remark}
     The existence of a singularity
@@ -364,7 +358,48 @@ when $JJ^{\top}$ is close to zero in some directions.
     then there is a moment when $q_1 = 0^{\circ}$
     and a singularity occurs.  But such a moment is instantaneous;
     the pre-existing momentum of the robot
-    gets it to pass the singularity unharmed.
+    allows it to pass the singularity unharmed.
 \end{remark}
+
+\subsection{Addendum: Velocities and Change-Of-Frame}
+
+The lecture also covers the following information
+about how velocities change between frames.
+
+\begin{theorem}{Monogram Velocities}
+    The following identities are all true.
+    \begin{itemize}
+        \item \emph{(Change of Frame)} We have
+        ${}^Av^B_G = {}^GR^F {}^Av^B_F$ and
+        ${}^A\omega^B_G = {}^GR^F {}^A\omega^B_F$.
+        \item \emph{(Additivity)} We have
+        ${}^A\omega^B_F + {}^B\omega^C_F = {}^A\omega^C_F$ and
+        ${}^Av^C_F = {}^Av^B_F + {}^Bv^C_F
+        + {}^A\omega^B_F \times {}^Bp^C_F$.
+        \item \emph{(Inverse)} We have
+        ${}^A\omega^B_F = -{}^B\omega^A_F$ and
+        ${}^Av^B_F = -{}^Bv^A_F -
+        {}^A\omega^B_F \times {}^Bp^A_F$.
+    \end{itemize}
+\end{theorem}
+
+\begin{proof}
+    The simplified 2D Kuka IIWA example from earlier
+    is a prototype to use when
+    thinking through these identities.
+
+    For the identity ${}^Av^C_F = {}^Av^B_F + {}^Bv^C_F
+    + {}^A\omega^B_F \times {}^Bp^C_F$, for example,
+    recall that ${}^Bv^C_F$ only captures
+    the movement of tip $C$ in the frame of joint $B$.
+    So if only joint $B$ is rotating, then ${}^Bv^C_F$ is zero,
+    even though $C$ is moving in the frame of $A$.
+
+    To account for the movement of tip $C$ caused by
+    the rotation of frame $B$, we must add the term
+    ${}^A\omega^B_F \times {}^Bp^C_F$.
+    (You can check that the proportionalities make sense.)
+    ~ $\blacksquare$
+\end{proof}
 
 \end{document}

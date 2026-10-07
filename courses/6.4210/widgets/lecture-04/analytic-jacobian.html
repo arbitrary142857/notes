@@ -1,0 +1,253 @@
+<div class="note-widget-box arm-box">
+<div class="arm-layout">
+<canvas class="arm-canvas jac-canvas" role="img" aria-label="Two-link planar arm with the position columns of the analytic Jacobian drawn at its tip."></canvas>
+<div class="arm-panel">
+
+<div class="arm-seg" role="group" aria-label="Orientation parametrization">
+    <button type="button" class="arm-seg-btn" data-param="rpy" aria-pressed="true">Roll-pitch-yaw</button>
+    <button type="button" class="arm-seg-btn" data-param="quat" aria-pressed="false">Quaternion</button>
+    <button type="button" class="arm-seg-btn" data-param="rot" aria-pressed="false">Rotation matrix</button>
+</div>
+<p class="ajac-caption"></p>
+
+<div class="jac-matrix-wrap">
+    <span class="jac-lhs"><i>J</i><sup>C</sup>(<i>q</i>) =</span>
+    <table class="jac-matrix" aria-label="Analytic Jacobian of the tip">
+        <tbody class="jac-body"></tbody>
+    </table>
+</div>
+
+<div class="note-widget-controls">
+    <div class="note-widget-row">
+        <label for="ajac-q0"><span class="arm-swatch arm-swatch-q0"></span><span><i>q</i><sub>0</sub></span></label>
+        <input type="range" id="ajac-q0" class="arm-slider-q0" min="-180" max="180" step="1" value="30">
+        <output id="ajac-q0-out">30&deg;</output>
+    </div>
+    <div class="note-widget-row">
+        <label for="ajac-q1"><span class="arm-swatch arm-swatch-q1"></span><span><i>q</i><sub>1</sub></span></label>
+        <input type="range" id="ajac-q1" class="arm-slider-q1" min="-180" max="180" step="1" value="40">
+        <output id="ajac-q1-out">40&deg;</output>
+    </div>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const canvas = root.querySelector(".jac-canvas");
+    const ctx = canvas.getContext("2d");
+    const body = root.querySelector(".jac-body");
+    const sliders = { q0: root.querySelector("#ajac-q0"), q1: root.querySelector("#ajac-q1") };
+    const outs = { q0: root.querySelector("#ajac-q0-out"), q1: root.querySelector("#ajac-q1-out") };
+
+    const COLOR = {
+        A: "#3a9e4a",
+        B: "#2b6cb0",
+        C: "#c0392b",
+        q0: "#3a9e4a",
+        q1: "#2b6cb0",
+        link: "#2f2a24",
+        linkFill: "#ffffff",
+        grid: "#e6e0d6",
+        axis: "#b8aea2",
+    };
+    const L = 1;
+    const ARROW_SCALE = 0.5; // world units drawn per unit of tip velocity
+    const VIEW_HALF_H = 2.6; // world units from canvas center to top edge
+    const P_ROWS = ["p<sub>x</sub>", "p<sub>y</sub>", "p<sub>z</sub>"];
+
+    // Each parametrization of the tip's orientation R_z(theta), theta = q0 + q1:
+    // phi(theta) and dphi/dtheta, which is both columns' orientation part
+    // (d theta / d q0 = d theta / d q1 = 1).
+    const PARAMS = {
+        rpy: {
+            caption: "φ = (roll, pitch, yaw) = (0, 0, <i>q</i><sub>0</sub> + <i>q</i><sub>1</sub>), so ℓ = 3.",
+            dphi: () => [0, 0, 1],
+        },
+        quat: {
+            caption: "φ = (cos(θ/2), 0, 0, sin(θ/2)) with θ = <i>q</i><sub>0</sub> + <i>q</i><sub>1</sub>, so ℓ = 4.",
+            dphi: (t) => [-0.5 * Math.sin(t / 2), 0, 0, 0.5 * Math.cos(t / 2)],
+        },
+        rot: {
+            caption: "φ = the entries of <i>R</i><sub>z</sub>(<i>q</i><sub>0</sub> + <i>q</i><sub>1</sub>), row by row, so ℓ = 9.",
+            dphi: (t) => {
+                const c = Math.cos(t), s = Math.sin(t);
+                return [-s, -c, 0, c, -s, 0, 0, 0, 0];
+            },
+        },
+    };
+    const segBtns = root.querySelectorAll(".arm-seg-btn");
+    const caption = root.querySelector(".ajac-caption");
+    const table = root.querySelector(".jac-matrix");
+    let param = "rpy";
+
+    const rad = (d) => (d * Math.PI) / 180;
+    const degText = (v) => (Math.round(v) + "°").replace("-", "−");
+    const numText = (v) => {
+        const s = (Math.abs(v) < 0.005 ? 0 : v).toFixed(2);
+        return s.replace("-", "−");
+    };
+
+    // Rebuilt whenever the parametrization (and so the height 3 + l) changes.
+    let cells = [];
+    function buildTable() {
+        const ell = PARAMS[param].dphi(0).length;
+        const names = P_ROWS.concat(Array.from({ length: ell }, (_, i) => "φ<sub>" + (i + 1) + "</sub>"));
+        body.textContent = "";
+        cells = [];
+        table.setAttribute("data-dense", ell > 4 ? "true" : "false");
+        names.forEach((name, i) => {
+            const tr = document.createElement("tr");
+            if (i === 3) tr.className = "jac-split";
+            const th = document.createElement("th");
+            th.innerHTML = name;
+            tr.appendChild(th);
+            const row = [];
+            for (let j = 0; j < 2; j++) {
+                const td = document.createElement("td");
+                td.className = j === 0 ? "jac-col-q0" : "jac-col-q1";
+                tr.appendChild(td);
+                row.push(td);
+            }
+            cells.push(row);
+            body.appendChild(tr);
+        });
+        caption.innerHTML = PARAMS[param].caption;
+    }
+
+    function kinematics(q0, q1) {
+        const B = [L * Math.cos(q0), L * Math.sin(q0)];
+        const C = [B[0] + L * Math.cos(q0 + q1), B[1] + L * Math.sin(q0 + q1)];
+        // dp/dq_i: z x (p_C - p_Ji), the same as the geometric Jacobian's v rows.
+        const col0 = [-C[1], C[0]];
+        const col1 = [-(C[1] - B[1]), C[0] - B[0]];
+        return { B, C, col0, col1 };
+    }
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth || 560;
+        const height = width;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { width, height };
+    }
+
+    function arrow(from, to, color, width) {
+        const dx = to[0] - from[0], dy = to[1] - from[1];
+        const len = Math.hypot(dx, dy);
+        if (len < 1) return;
+        const head = Math.min(4 * width, len * 0.45);
+        const ux = dx / len, uy = dy / len;
+        const bx = to[0] - ux * head, by = to[1] - uy * head;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(from[0], from[1]);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(to[0], to[1]);
+        ctx.lineTo(bx - uy * head * 0.55, by + ux * head * 0.55);
+        ctx.lineTo(bx + uy * head * 0.55, by - ux * head * 0.55);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function draw() {
+        const q0d = +sliders.q0.value, q1d = +sliders.q1.value;
+        outs.q0.textContent = degText(q0d);
+        outs.q1.textContent = degText(q1d);
+        const k = kinematics(rad(q0d), rad(q1d));
+
+        const dphi = PARAMS[param].dphi(rad(q0d + q1d));
+        const values = [[k.col0[0], k.col1[0]], [k.col0[1], k.col1[1]], [0, 0]].concat(dphi.map((v) => [v, v]));
+        values.forEach((row, i) => row.forEach((v, j) => {
+            cells[i][j].textContent = numText(v);
+        }));
+
+        const { width: W, height: H } = resizeCanvas();
+        const S = H / 2 / VIEW_HALF_H;
+        const K = Math.min(Math.max(W / 560, 0.8), 1.5);
+        const px = (p) => [W / 2 + p[0] * S, H / 2 - p[1] * S];
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        ctx.strokeStyle = COLOR.grid;
+        ctx.lineWidth = 1;
+        for (let g = -Math.floor(W / 2 / S); g <= W / 2 / S; g++) {
+            ctx.beginPath(); ctx.moveTo(W / 2 + g * S, 0); ctx.lineTo(W / 2 + g * S, H); ctx.stroke();
+        }
+        for (let g = -Math.floor(VIEW_HALF_H); g <= VIEW_HALF_H; g++) {
+            ctx.beginPath(); ctx.moveTo(0, H / 2 - g * S); ctx.lineTo(W, H / 2 - g * S); ctx.stroke();
+        }
+        ctx.strokeStyle = COLOR.axis;
+        ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+
+        const A = px([0, 0]), B = px(k.B), C = px(k.C);
+        for (const [p, q] of [[A, B], [B, C]]) {
+            ctx.strokeStyle = COLOR.link;
+            ctx.lineWidth = 15 * K;
+            ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+            ctx.strokeStyle = COLOR.linkFill;
+            ctx.lineWidth = 11 * K;
+            ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+        }
+
+        // Each column's lever arm: from its joint to the tip.
+        ctx.setLineDash([4 * K, 4 * K]);
+        ctx.lineWidth = 1.3 * K;
+        ctx.strokeStyle = COLOR.q0;
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(C[0], C[1]); ctx.stroke();
+        ctx.setLineDash([]);
+
+        for (const [p, color] of [[A, COLOR.A], [B, COLOR.B], [C, COLOR.C]]) {
+            ctx.fillStyle = color;
+            ctx.strokeStyle = COLOR.link;
+            ctx.lineWidth = 1.5 * K;
+            ctx.beginPath(); ctx.arc(p[0], p[1], 6 * K, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        }
+
+        const tip = (v) => px([k.C[0] + v[0] * ARROW_SCALE, k.C[1] + v[1] * ARROW_SCALE]);
+        arrow(C, tip(k.col0), COLOR.q0, 2.6 * K);
+        arrow(C, tip(k.col1), COLOR.q1, 2.6 * K);
+
+        ctx.font = `italic ${Math.round(15 * K)}px "TeX Gyre Termes", "Times New Roman", serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const label = (p, text, color, away) => {
+            const dx = p[0] - away[0], dy = p[1] - away[1];
+            const n = Math.hypot(dx, dy) || 1;
+            ctx.fillStyle = color;
+            ctx.fillText(text, p[0] + (dx / n) * 16 * K, p[1] + (dy / n) * 16 * K);
+        };
+        label(A, "A", COLOR.A, B);
+        label(B, "B", COLOR.B, [(A[0] + C[0]) / 2, (A[1] + C[1]) / 2]);
+        label(C, "C", COLOR.C, B);
+
+        canvas.setAttribute("aria-label",
+            "Two-link arm at q0 = " + q0d + " degrees, q1 = " + q1d + " degrees. Column 1 is ("
+            + numText(k.col0[0]) + ", " + numText(k.col0[1]) + "), column 2 is ("
+            + numText(k.col1[0]) + ", " + numText(k.col1[1]) + ").");
+    }
+
+    segBtns.forEach((btn) => btn.addEventListener("click", () => {
+        param = btn.getAttribute("data-param");
+        segBtns.forEach((b) => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+        buildTable();
+        draw();
+    }));
+    buildTable();
+    sliders.q0.addEventListener("input", draw);
+    sliders.q1.addEventListener("input", draw);
+    window.addEventListener("resize", draw);
+    draw();
+})();
+</script>
