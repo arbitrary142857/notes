@@ -1,0 +1,389 @@
+\lecture{6}
+\title{Motion Planning}
+
+\begin{document}
+
+\subsection{Motion Planning: Setup}
+
+\textbf{Definition.}
+Some reminders of some definitions:
+\begin{itemize}
+    \item The \textbf{work space} (or \textbf{Cartesian space}) of a robot
+    is the set of points reachable by an end-effector.
+    \begin{itemize}
+        \item For example, one might use $(x, y, \theta)$ to parametrize
+        the work space of a two-rod 2D Kuka IIWA.
+    \end{itemize}
+    \item The \textbf{configuration space} of a robot
+    is the set of reachable configurations of the robot---not just
+    the end-effector!
+    \begin{itemize}
+        \item A configuration is denoted $\mathbf{q} \in C$,
+        where $C$ is the set of all possible configurations.
+        \item For example, one might use $(q_1, q_2)$ to parametrize
+        the configuration space of a two-rod 2D Kuka IIWA.
+        \begin{itemize}
+            \item The topology of the configuration space
+            might not be Cartesian; in this example,
+            it's $S^1 \times S^1$ (a torus).
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+
+\textbf{Definition.}
+In motion planning, we assume that we have:
+\begin{itemize}
+    \item A world $W$.
+    \item An obstacle region $O \subset W$.
+    \item A robot $A$ defined in $W$ (i.e., $A \subset W$).
+    \item We seek a collision-free path from
+    $\mathbf{q}_I \in C$ to $\mathbf{q}_G \in C$.
+\end{itemize}
+
+\subsection{Motion Planning: Obstacle Space}
+
+Given a robot $A$ and an object $O$,
+how can we determine the set of positions of $A$
+in which $A$ and $O$ do not intersect?
+
+\textbf{Definition.}
+We define the \textbf{obstacle space} $C_{\mathrm{obs}} \subset C$ by
+$C_{\mathrm{obs}} := \{q \in C \mid A(q) \cap O \neq \emptyset\}$,
+in addition to $C_{\mathrm{free}} = C \setminus C_{\mathrm{obs}}$.
+
+\begin{remark}
+    For some reason, we care about whether $C_{\mathrm{free}}$ is closed
+    in the topology of $C$.  If not, we must use
+    the closure of $C_{\mathrm{free}}$.
+\end{remark}
+
+In simple translational cases,
+we can write $C_{\mathrm{obs}} = O \ominus A$,
+where $\ominus$ is the
+\href{https://en.wikipedia.org/wiki/Minkowski_addition}{Minkowski difference}.
+
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-06/minkowski-difference.png}}
+\end{center}
+
+The Minkowski difference can be efficiently computed using the
+\textbf{Star algorithm}---details omitted.
+
+But for nontranslational cases, the obstacle space can be harder to compute.
+For example, the robot might be allowed to rotate,
+or the configuration space might be non-Cartesian.
+
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-06/rotating.png}}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-06/two-rod-obstacles.png}}
+\end{center}
+
+In some of these cases, the runtime for computing $C_{\mathrm{obs}}$
+might be exponential!
+
+The upshot of defining $C_{\mathrm{obs}}$ is that
+we can now define the problem of motion planning
+entirely within the configuration space $C$.
+
+\textbf{Definition.}
+In motion planning, we assume that we have:
+\begin{itemize}
+    \item A configuration space $C$, plus
+    an obstacle space $C_{\mathrm{obs}} \subset C$
+    and a free space $C_{\mathrm{free}} := C \setminus C_{\mathrm{obs}}$.
+    \item We seek a continuous path $\tau \colon [0, 1] \to C_{\mathrm{free}}$
+    with $\tau(0) = \mathbf{q}_I$ and $\tau(1) = \mathbf{q}_G$.
+\end{itemize}
+
+\subsection{Combinatorial Planning}
+
+\textbf{Definition.}
+A motion planner is \textbf{complete} if
+it always finds a solution if one exists
+and returns a failure in \emph{bounded} time if not.
+
+The combinatorial algorithms we discuss in this section will be complete,
+and they will all employ \textbf{road maps}.
+
+\textbf{Definition.}
+Given a configuration space $C$ and a free space $C_{\mathrm{free}}$,
+a \textbf{road map} $R$ is a graph whose vertices are
+configurations in $C_{\mathrm{free}}$ and whose edges are
+collision-free paths between vertices.
+This graph must be such that:
+\begin{itemize}
+    \item \textbf{(Accessibility)}
+    For any starting point $q_I \in C_{\mathrm{free}}$,
+    it is easy to find a collision-free path $q_I \to q'$
+    for some $q' \in R$.
+    \item \textbf{(Departability)}
+    For any ending point $q_G \in C_{\mathrm{free}}$,
+    it is easy to find a collision-free path $q' \to q_G$
+    for some $q' \in R$.
+    \item \textbf{(Connectivity)}
+    If $q_1, q_2 \in R$ are connected in $C_{\mathrm{free}}$,
+    then they are connected in the graph of $R$.
+\end{itemize}
+Here's an example of how a road map
+might let us find a collision-free path $q_I \to q_G$.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-06/roadmap.png}}
+\end{center}
+
+Here are some different strategies for constructing road maps.
+
+\begin{quote}
+    \textbf{Visibility Graph.}
+    Suppose the configuration space is $\mathbb{R}^2$,
+    and every obstacle is a convex polygon.
+    (If an obstacle is concave,
+    you can work around this by breaking it up
+    into convex pieces.)
+
+    Then for any $q_I, q_G \in C_{\mathrm{free}}$,
+    to find a path $q_I \to q_G$, we simply:
+    \begin{itemize}
+        \item Precompute for any two vertices of two polygons,
+        whether the straight-line path between them is collision-free.
+        \item Determine the set of all polygon vertices $q$
+        for which $q_I \to q$ is collision-free
+        (and separately for $q \to q_G$, too).
+        \item Apply a shortest-path $O(n^2 \log n)$ algorithm (e.g., A*)
+        to find the shortest collision-free path $q_I \to q_G$.
+    \end{itemize}
+    \begin{center}
+        \frame{\includegraphics[width=0.25\textwidth]{lecture-06/visibility-graph.png}}
+    \end{center}
+    It turns out that this algorithm in fact
+    always finds the \emph{shortest} collision-free path $q_I \to q_G$.
+\end{quote}
+
+\begin{remark}
+    In computational geometry,
+    people have found more efficient algorithms
+    for computing visibility graphs.
+    In practice, though,
+    sampling-based motion planning algorithms are preferred---as
+    we'll see later on.
+\end{remark}
+
+\begin{quote}
+    \textbf{Voronoi Diagram.}
+    Just construct the
+    \href{https://en.wikipedia.org/wiki/Voronoi_diagram}{Voronoi Diagram}
+    of the obstacles.
+    \begin{center}
+        \frame{\includegraphics[width=0.25\textwidth]{lecture-06/voronoi-diagram.png}}
+    \end{center}
+    The roadmap graph is then exactly the ``boundaries''
+    of the Voronoi diagram.
+    In a sense, this lets you keep a maximum distance away
+    from any obstacle throughout your collision-free path.
+\end{quote}
+
+One last algorithm archetype.
+
+\begin{quote}
+    \textbf{Cell Decomposition.}
+    Split the configuration space into cells,
+    and then find paths between the cells.
+
+    For example, here's a cell decomposition by
+    $x$-coordinate of the obstacles.
+    \begin{center}
+        \frame{\includegraphics[width=0.4\textwidth]{lecture-06/x-coordinate-cells.png}}
+    \end{center}
+    There are also \emph{approximate} cell decomposition approaches;
+    for example, here's a quadtree decomposition approach.
+    \begin{center}
+        \frame{\includegraphics[width=0.4\textwidth]{lecture-06/quadrtree-decomposition.png}}
+    \end{center}
+    The idea is that cells are either empty, full, or mixed,
+    and that ``mixed'' cells can be zoomed into as needed.
+\end{quote}
+
+As mentioned earlier, these are all \textbf{complete} algorithms
+(approximate cell decompositions only up to resolution).
+But their disadvantages are that they become intractable
+as the obstacle complexity or dimensionality of the $C$-space increases.
+(And this happens very often in robotic manipulation!)
+
+\subsection{Sampling-Based Planning}
+
+\textbf{Definition.}
+A (randomized) motion planner is \textbf{probabilistically complete}
+if, assuming a solution exists,
+the probability of finding that solution in $t$ time
+tends to one as $t \to \infty$.
+
+The sampling-based algorithms we discuss in this section
+will be probabilistically complete.  There are two kinds:
+\begin{itemize}
+    \item \textbf{Multi-query:}
+    The algorithm performs some precomputation---assumes
+    obstacles are fixed across queries.
+    \item \textbf{Single-query:}
+    The algorithm does not perform precomputation---useful
+    when obstacles move over time.
+\end{itemize}
+
+Here's the most common multi-query algorithm.
+
+\begin{quote}
+    \textbf{Probabilistic Roadmap (PRM).}
+    Construct the roadmap $R = (V, E)$ procedurally by repeating the following algorithm.
+    \begin{enumerate}
+        \item Randomly pick a point $q \in C$
+        and check if $q \in C_{\mathrm{free}}$.
+        If it isn't, try again.
+        \item If it is, add $q$ to $V$,
+        and for each $q' \in V$ with $\|q - q'\| < d$,
+        add the edge $q \leftrightarrow q'$ to $E$
+        if that path is collision-free.
+    \end{enumerate}
+    The whole point of PRM is to avoid having to compute $C_{\mathrm{obs}}$.
+    Instead, for each $q \in C$, it uses a custom collision-detector
+    to check whether $q \in C_{\mathrm{free}}$.
+    (Efficient collision-detectors exist,
+    because \emph{video games} require them.)
+    \begin{center}
+        \includegraphics[width=0.3\textwidth]{lecture-06/PRM.png}
+    \end{center}
+    As shown above, though, the paths outputted by PRM
+    are not very short.  Here are some improvements to PRM:
+    \begin{itemize}
+        \item Find \emph{shortcuts}---between two points on the path,
+        ask if the straight line between them is collision-free.
+        \begin{center}
+            \frame{\includegraphics[width=0.3\textwidth]{lecture-06/shortcut.png}}
+        \end{center}
+        \item Use paths generated by PRM as starting paths
+        for the optimization algorithms described in
+        \href{/6.4210/lectures/5}{Lecture 5}.
+    \end{itemize}
+\end{quote}
+
+Unfortunately, PRM may fail with nonzero probability
+because the roadmaps it produces might not satisfy
+\emph{Accessibility and Departability} or \emph{Connectivity},
+as shown below.
+
+\begin{center}
+    \frame{\includegraphics[width=0.6\textwidth]{lecture-06/PRM-failures.png}}
+\end{center}
+
+But PRM just works very well in practice because---even in
+high dimensions---collision-detection is still very fast.
+
+Sometimes the obstacles do move around, though,
+in which case we require single-query algorithms.
+
+\begin{quote}
+    \textbf{Rapidly-Exploring Random Trees (RRT).}
+    We gradually add points to a connected tree
+    in the following way.
+    \begin{enumerate}
+        \item Randomly pick a point $q_{\mathrm{rand}} \in C$
+        and check if $q_{\mathrm{rand}} \in C_{\mathrm{free}}$.
+        If it isn't, try again.
+        \begin{itemize}
+            \item With probability $p$ (the \emph{goal bias}),
+            our random point $q_{\mathrm{rand}}$
+            will just be $q_{\mathrm{rand}} = q_G$,
+            the goal.
+        \end{itemize}
+        \item (\textsc{Extend})
+        If it is, then do the following:
+        \begin{itemize}
+            \item Find the nearest point $q' \in T$ to $q_{\mathrm{rand}}$.
+            \item Compute the point $q_{\mathrm{new}}$
+            that is $\eta$ of the way between $q'$ and $q_{\mathrm{rand}}$,
+            for some fixed constant $\eta \in (0, 1)$.
+            \item If the segment $q' \to q_{\mathrm{new}}$ lies in $C_{\mathrm{free}}$,
+            then append $q_{\mathrm{new}}$ to $T$
+            and connect $q'$ and $q_{\mathrm{new}}$ with
+            a collision-free path.
+        \end{itemize}
+    \end{enumerate}
+    You can see this algorithm in action
+    using the (warning: AI-generated) widget below.
+
+    \includewidget{lecture-06/rrt}
+
+    Note that this algorithm is \emph{not} the same
+    as a plain random walk---a random walk
+    doesn't tend to go anywhere,
+    whereas RRT will eventually tend to fill the space.
+
+    A natural speed-up is \textbf{RRT-Connect},
+    in which we grow a tree from \emph{both} $q_I$ and $q_G$
+    bidirectionally.
+    \begin{enumerate}
+        \item Grow trees $T_A$ and $T_B$ out of $q_I$ and $q_G$,
+        respectively.
+        \item Suppose RRT adds a new vertex $q_{\mathrm{new}}$ to $T_A$
+        (\textsc{Extend}).  Then:
+        \begin{itemize}
+            \item Take the nearest point $q' \in T_B$ to $q_{\mathrm{new}}$
+            and take steps (\textsc{Extend}) from $q'$ to $q_{\mathrm{new}}$
+            until a collision occurs.
+            \item Add any taken steps to the tree $T_B$.
+            Then swap $T_A$ and $T_B$.
+            \begin{itemize}
+                \item Allegedly, taking $T_A$ to always be the smaller tree
+                helps even more.
+            \end{itemize}
+        \end{itemize}
+        \item Repeat until the steps taken from $q'$ to $q_{\mathrm{new}}$
+        reach $q_{\mathrm{new}}$ without any collisions.
+    \end{enumerate}
+    You can see in the widget above that
+    RRT-Connect is much better than RRT for
+    navigating narrow passages.
+
+    One last improvement is \textbf{RRT*},
+    which favors \emph{shorter} paths between $q_I$ and $q_G$.
+    Handwavily, it adapts RRT in two ways:
+    \begin{itemize}
+        \item Connect each $q_{\mathrm{new}}$ to whichever nearby $q' \in T$
+        gives the shortest path from $q_I$---not necessarily
+        the $q'$ closest to $q_{\mathrm{new}}$.
+        \item Afterwards, \emph{rewire} $T$:
+        if a nearby $q' \in T$
+        would have a shorter path from $q_I$ through $q_{\mathrm{new}}$,
+        reroute it through $q_{\mathrm{new}}$.
+    \end{itemize}
+    RRT* keeps running even after it reaches $q_G$
+    so that even shorter paths can be found over time.
+\end{quote}
+
+One advantage of RRT is that it works even for \textbf{non-holonomic} robots.
+
+\textbf{Definition.}
+A robot is \textbf{holonomic} if
+it can freely move in any direction in its configuration space.
+\begin{itemize}
+    \item The simplified 2D two-rod Kuka IIWA
+    is a holonomic robot.
+    \item A car is not a holonomic robot;
+    it cannot translate its body in a lateral direction.
+\end{itemize}
+
+Combinatorial planning algorithms
+ask whether you can move from $q_1$ to $q_2$
+in the configuration space,
+which is not easily answerable for
+non-holonomic robots.
+
+But RRT only asks whether, starting from $q'$,
+you can get \emph{closer} to $q_{\mathrm{rand}}$,
+thereby landing on $q_{\mathrm{new}}$.
+This can be answered for non-holonomic robots
+by forward-simulating various inputs
+and checking whether any results
+land closer to $q_{\mathrm{rand}}$.
+
+Spoilers: it turns out that RRT (or variants of it)
+just perform the best in practice.
+
+\end{document}

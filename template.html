@@ -786,6 +786,84 @@ code.verbatim-inline {
 .jc-bar-post {
   background: #b26a00;
 }
+.note-widget-box.rrt-box {
+  max-width: 38em;
+  padding: 0.9em 1.25em;
+}
+.rrt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em 0.75em;
+}
+.rrt-actions {
+  display: flex;
+  gap: 0.4em;
+}
+.rrt-actions .note-widget-btn {
+  font-size: 0.85em;
+  padding: 0.4em 0.6em;
+  white-space: nowrap;
+}
+/* Fits "Pause" too, so toggling doesn't resize the button. */
+.rrt-actions .rrt-run-btn {
+  min-width: 4.2em;
+}
+.rrt-canvas {
+  margin-top: 0.6em;
+}
+.rrt-box .arm-legend {
+  margin-top: 0.4em;
+}
+.rrt-box .sing-formula {
+  margin-top: 0.35em;
+  text-align: center;
+}
+.rrt-sliders {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5em 1.5em;
+  margin-top: 0.5em;
+}
+@media (max-width: 36em) {
+  .rrt-sliders {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.rrt-box .note-widget-row label {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.rrt-box .note-widget-row output {
+  flex: 0 0 2.75em;
+}
+.rrt-box .note-widget-row.rrt-row-disabled {
+  opacity: 0.4;
+}
+.rrt-swatch-tree-a {
+  background: #2b6cb0;
+}
+.rrt-swatch-tree-b {
+  background: #7b4fa0;
+}
+.rrt-swatch-rewire {
+  background: #138d75;
+}
+.rrt-box .arm-legend > span[hidden] {
+  display: none;
+}
+.rrt-swatch-start {
+  background: #3a9e4a;
+}
+.rrt-swatch-goal {
+  background: #c0392b;
+}
+.rrt-swatch-rand {
+  box-shadow: inset 0 0 0 1.5px #8a8178;
+}
+.rrt-swatch-new {
+  background: #b26a00;
+}
 .gimbal-buttons {
   display: flex;
   flex-wrap: wrap;

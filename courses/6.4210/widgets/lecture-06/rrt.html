@@ -1,0 +1,574 @@
+<div class="note-widget-box rrt-box">
+<div class="rrt-toolbar">
+    <div class="arm-seg rrt-algos" role="group" aria-label="Algorithm">
+        <button type="button" class="arm-seg-btn" data-algo="rrt" aria-pressed="true">RRT</button>
+        <button type="button" class="arm-seg-btn" data-algo="connect" aria-pressed="false">RRT-Connect</button>
+        <button type="button" class="arm-seg-btn" data-algo="star" aria-pressed="false">RRT*</button>
+    </div>
+    <div class="arm-seg rrt-maps" role="group" aria-label="Obstacle map">
+        <button type="button" class="arm-seg-btn" data-map="walls" aria-pressed="true">Walls</button>
+        <button type="button" class="arm-seg-btn" data-map="clutter" aria-pressed="false">Clutter</button>
+        <button type="button" class="arm-seg-btn" data-map="passage" aria-pressed="false">Passage</button>
+    </div>
+    <div class="rrt-actions">
+        <button type="button" class="note-widget-btn rrt-step-btn">Step</button>
+        <button type="button" class="note-widget-btn rrt-run-btn" aria-pressed="false">Run</button>
+        <button type="button" class="note-widget-btn rrt-reset-btn">Reset</button>
+    </div>
+</div>
+
+<canvas class="rrt-canvas" role="img" aria-label="Configuration space with obstacles and a rapidly-exploring random tree."></canvas>
+
+<p class="arm-legend">
+    <span><span class="arm-swatch rrt-swatch-start"></span><span><i>q</i><sub><i>I</i></sub> (drag)</span></span>
+    <span><span class="arm-swatch rrt-swatch-goal"></span><span><i>q</i><sub><i>G</i></sub> (drag)</span></span>
+    <span data-only="connect" hidden><span class="arm-swatch rrt-swatch-tree-a"></span><span>tree from <i>q</i><sub><i>I</i></sub></span></span>
+    <span data-only="connect" hidden><span class="arm-swatch rrt-swatch-tree-b"></span><span>tree from <i>q</i><sub><i>G</i></sub></span></span>
+    <span><span class="arm-swatch rrt-swatch-rand"></span><span><i>q</i><sub>rand</sub></span></span>
+    <span><span class="arm-swatch rrt-swatch-new"></span><span><i>q</i><sub>new</sub></span></span>
+    <span data-only="star" hidden><span class="arm-swatch rrt-swatch-rewire"></span><span>rewired</span></span>
+</p>
+
+<p class="sing-formula rrt-caption"></p>
+<span class="arm-live rrt-live" aria-live="polite"></span>
+
+<div class="note-widget-controls rrt-sliders">
+    <div class="note-widget-row">
+        <label for="rrt-eta"><span>Step <i>&eta;</i></span></label>
+        <input type="range" id="rrt-eta" min="0.2" max="1.5" step="0.05" value="0.5">
+        <output id="rrt-eta-out">0.50</output>
+    </div>
+    <div class="note-widget-row rrt-bias-row">
+        <label for="rrt-bias"><span>Goal bias</span></label>
+        <input type="range" id="rrt-bias" min="0" max="0.5" step="0.01" value="0.05">
+        <output id="rrt-bias-out">5%</output>
+    </div>
+</div>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const canvas = root.querySelector(".rrt-canvas");
+    const ctx = canvas.getContext("2d");
+    const caption = root.querySelector(".rrt-caption");
+    const live = root.querySelector(".rrt-live");
+    const etaSlider = root.querySelector("#rrt-eta");
+    const etaOut = root.querySelector("#rrt-eta-out");
+    const biasSlider = root.querySelector("#rrt-bias");
+    const biasOut = root.querySelector("#rrt-bias-out");
+    const biasRow = root.querySelector(".rrt-bias-row");
+    const stepBtn = root.querySelector(".rrt-step-btn");
+    const runBtn = root.querySelector(".rrt-run-btn");
+    const resetBtn = root.querySelector(".rrt-reset-btn");
+    const mapBtns = Array.from(root.querySelectorAll(".rrt-maps .arm-seg-btn"));
+    const algoBtns = Array.from(root.querySelectorAll(".rrt-algos .arm-seg-btn"));
+    const algoOnly = Array.from(root.querySelectorAll("[data-only]"));
+
+    const COLOR = {
+        free: "#ffffff",
+        border: "#2f2a24",
+        obs: "#cfc6b8",
+        obsEdge: "#8a8178",
+        tree: ["#2b6cb0", "#7b4fa0"], // tree rooted at q_I, tree rooted at q_G
+        start: "#3a9e4a",
+        goal: "#c0392b",
+        rand: "#8a8178",
+        fresh: "#b26a00",
+        path: "#b26a00",
+        reject: "#c0392b",
+        rewire: "#138d75",
+    };
+    const ALGO_NAME = { rrt: "RRT", connect: "RRT-Connect", star: "RRT*" };
+    const WX = 10, WY = 5; // C-space is [0, WX] x [0, WY]
+    const MAX_NODES = 3000;
+    // RRT* neighbor radius r = min(GAMMA sqrt(log n / n), 3 eta); GAMMA exceeds the
+    // asymptotic-optimality threshold 2 sqrt(1.5) sqrt(area / pi) for this 10 x 5 space.
+    const GAMMA = 10;
+
+    // Obstacles are axis-aligned boxes [x0, y0, x1, y1] in C-space.
+    const MAPS = {
+        walls: {
+            start: [1, 0.8], goal: [9, 4.2],
+            obs: [[3, 0, 3.6, 3.6], [6.4, 1.4, 7, 5]],
+        },
+        clutter: {
+            start: [0.8, 2.5], goal: [9.2, 2.5],
+            obs: [
+                [2, 0.4, 3, 1.7], [2.2, 2.9, 3.2, 4.4], [4.3, 1.7, 5.7, 3.3],
+                [4.6, 0, 5.4, 0.9], [4.4, 4, 5.8, 5], [6.8, 0.7, 7.6, 2.1],
+                [7, 3, 8.2, 3.9],
+            ],
+        },
+        passage: {
+            start: [1.5, 1], goal: [8.5, 4],
+            obs: [[4.2, 0, 5.8, 2.3], [4.2, 2.7, 5.8, 5]],
+        },
+    };
+
+    let mapKey = "walls";
+    let algo = "rrt";
+    let start, goal, obs;
+    // trees[0] is rooted at q_I, trees[1] at q_G (used only by RRT-Connect).
+    // nodes[i] = [x, y]; parent[i] = index of parent (-1 for the root);
+    // cost[i] = path length from the root; children[i] = indices (RRT* rewiring).
+    let trees;
+    let active; // RRT-Connect: index of the tree that extends this iteration
+    let goalIdx; // RRT*: index of q_G in trees[0], or -1 before it is reached
+    let firstCost, firstIter; // RRT*: cost and iteration of the first path found
+    let iters, last, path, running = false, rafId = 0;
+    let drag = null;
+
+    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const fmt = (v) => v.toFixed(2);
+    const pt = (p) => "(" + p[0].toFixed(1) + ", " + p[1].toFixed(1) + ")";
+    const nodeCount = () => trees[0].nodes.length + (algo === "connect" ? trees[1].nodes.length : 0);
+    const pathLength = () => path.slice(1).reduce((acc, p, i) => acc + dist(path[i], p), 0);
+    // RRT* keeps refining after reaching q_G; the others stop at the first path.
+    const finished = () => nodeCount() >= MAX_NODES || (!!path && algo !== "star");
+    const TREE_NAME = ["<i>q</i><sub><i>I</i></sub>", "<i>q</i><sub><i>G</i></sub>"];
+    const QNEW = "<i>q</i><sub>new</sub>";
+
+    function pointFree(p) {
+        if (p[0] < 0 || p[0] > WX || p[1] < 0 || p[1] > WY) return false;
+        return !obs.some(([x0, y0, x1, y1]) => p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1);
+    }
+
+    // Liang-Barsky clip of segment a->b against each box: exact collision check.
+    function segmentFree(a, b) {
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        for (const [x0, y0, x1, y1] of obs) {
+            let t0 = 0, t1 = 1, hit = true;
+            for (const [p, q] of [[-dx, a[0] - x0], [dx, x1 - a[0]], [-dy, a[1] - y0], [dy, y1 - a[1]]]) {
+                if (p === 0) {
+                    if (q < 0) { hit = false; break; }
+                } else {
+                    const r = q / p;
+                    if (p < 0) t0 = Math.max(t0, r); else t1 = Math.min(t1, r);
+                    if (t0 > t1) { hit = false; break; }
+                }
+            }
+            if (hit) return false;
+        }
+        return true;
+    }
+
+    const newTree = (q) => ({ nodes: [q.slice()], parent: [-1], cost: [0], children: [[]] });
+
+    function addNode(tree, q, from) {
+        tree.nodes.push(q);
+        tree.parent.push(from);
+        tree.cost.push(tree.cost[from] + dist(tree.nodes[from], q));
+        tree.children.push([]);
+        tree.children[from].push(tree.nodes.length - 1);
+        return tree.nodes.length - 1;
+    }
+
+    function resetTree() {
+        trees = [newTree(start), newTree(goal)];
+        active = 0;
+        goalIdx = -1;
+        iters = 0;
+        last = null;
+        path = null;
+        setRunning(false);
+        draw();
+    }
+
+    function loadMap(key) {
+        mapKey = key;
+        const m = MAPS[key];
+        start = m.start.slice();
+        goal = m.goal.slice();
+        obs = m.obs;
+        mapBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.map === key)));
+        resetTree();
+    }
+
+    function setAlgo(key) {
+        algo = key;
+        algoBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.algo === key)));
+        algoOnly.forEach((el) => { el.hidden = el.dataset.only !== key; });
+        // RRT-Connect aims at the other tree instead of sampling q_G.
+        biasSlider.disabled = key === "connect";
+        biasRow.classList.toggle("rrt-row-disabled", key === "connect");
+        resetTree();
+    }
+
+    function nearest(tree, q) {
+        let near = 0, best = Infinity;
+        tree.nodes.forEach((n, i) => {
+            const d = dist(n, q);
+            if (d < best) { best = d; near = i; }
+        });
+        return near;
+    }
+
+    // The point at most eta from qNear toward q.
+    function steer(qNear, q) {
+        const eta = +etaSlider.value;
+        const d = dist(qNear, q);
+        const s = d <= eta ? 1 : eta / d;
+        return { qNew: [qNear[0] + s * (q[0] - qNear[0]), qNear[1] + s * (q[1] - qNear[1])], reached: s === 1 };
+    }
+
+    // EXTEND: step at most eta from tree's node `from` toward q; add the new node if collision-free.
+    function extend(tree, from, q) {
+        const qNear = tree.nodes[from];
+        const { qNew, reached } = steer(qNear, q);
+        const ok = pointFree(qNew) && segmentFree(qNear, qNew);
+        const index = ok ? addNode(tree, qNew, from) : -1;
+        return { qNear, qNew, ok, reached: ok && reached, index };
+    }
+
+    function branch(tree, i) {
+        const out = [];
+        for (; i >= 0; i = tree.parent[i]) out.push(tree.nodes[i]);
+        return out.reverse(); // root ... node i
+    }
+
+    function sample() {
+        // Once RRT* has q_G in its tree, sampling q_G again would only duplicate it.
+        const towardGoal = algo !== "connect" && goalIdx < 0 && Math.random() < +biasSlider.value;
+        return { qRand: towardGoal ? goal.slice() : [Math.random() * WX, Math.random() * WY], towardGoal };
+    }
+
+    function finish() {
+        setRunning(false);
+        live.textContent = "Path found after " + iters + " iterations; length " + fmt(pathLength()) + ".";
+    }
+
+    // One RRT iteration: sample, find nearest, steer by eta, collision-check, maybe connect to goal.
+    function stepRRT() {
+        const tree = trees[0];
+        const { qRand, towardGoal } = sample();
+        const ext = extend(tree, nearest(tree, qRand), qRand);
+        last = { qRand, towardGoal, ext, tree: 0 };
+        if (ext.ok && dist(ext.qNew, goal) <= +etaSlider.value && segmentFree(ext.qNew, goal)) {
+            const g = dist(ext.qNew, goal) > 1e-9 ? addNode(tree, goal.slice(), ext.index) : ext.index;
+            path = branch(tree, g);
+            finish();
+        }
+    }
+
+    // One RRT-Connect iteration: EXTEND the active tree toward q_rand, then greedily
+    // CONNECT the other tree toward q_new until it reaches it or hits an obstacle.
+    function stepConnect() {
+        const A = trees[active], B = trees[1 - active];
+        const { qRand } = sample();
+        const ext = extend(A, nearest(A, qRand), qRand);
+        last = { qRand, ext, tree: active, connect: null };
+        if (ext.ok) {
+            const steps = [];
+            let from = nearest(B, ext.qNew), c;
+            do {
+                c = extend(B, from, ext.qNew);
+                steps.push(c);
+                from = c.index;
+            } while (c.ok && !c.reached && nodeCount() < MAX_NODES);
+            last.connect = { steps, reached: c.reached };
+            if (c.reached) {
+                // Both branches end at q_new; drop the duplicate before joining them.
+                const a = branch(A, ext.index), b = branch(B, c.index).reverse().slice(1);
+                path = active === 0 ? a.concat(b) : b.reverse().concat(a.reverse());
+                finish();
+                return;
+            }
+        }
+        active = 1 - active;
+    }
+
+    // Shift the cost of i's whole subtree after i gets a cheaper parent.
+    function shiftCosts(tree, i, delta) {
+        const stack = [i];
+        while (stack.length) {
+            const j = stack.pop();
+            tree.cost[j] += delta;
+            stack.push(...tree.children[j]);
+        }
+    }
+
+    // One RRT* iteration: steer as in RRT, but give q_new the cheapest collision-free
+    // parent within radius r, then rewire neighbors through q_new when that is cheaper.
+    function stepStar() {
+        const tree = trees[0];
+        const { qRand, towardGoal } = sample();
+        const near = nearest(tree, qRand);
+        const qNear = tree.nodes[near];
+        const { qNew } = steer(qNear, qRand);
+        const ok = pointFree(qNew) && segmentFree(qNear, qNew);
+        last = { qRand, towardGoal, ext: { qNear, qNew, ok }, tree: 0 };
+        if (!ok) return;
+
+        const n = tree.nodes.length + 1;
+        const r = Math.min(GAMMA * Math.sqrt(Math.log(n) / n), 3 * +etaSlider.value);
+        const nbrs = [];
+        tree.nodes.forEach((q, i) => { if (i === near || dist(q, qNew) <= r) nbrs.push(i); });
+
+        let best = near, bestCost = tree.cost[near] + dist(qNear, qNew);
+        for (const i of nbrs) {
+            const c = tree.cost[i] + dist(tree.nodes[i], qNew);
+            if (c < bestCost && segmentFree(tree.nodes[i], qNew)) { best = i; bestCost = c; }
+        }
+        const k = addNode(tree, qNew, best);
+
+        const rewired = [];
+        for (const i of nbrs) {
+            if (i === best) continue;
+            const c = bestCost + dist(qNew, tree.nodes[i]);
+            if (c < tree.cost[i] - 1e-9 && segmentFree(qNew, tree.nodes[i])) {
+                const kids = tree.children[tree.parent[i]];
+                kids.splice(kids.indexOf(i), 1);
+                tree.parent[i] = k;
+                tree.children[k].push(i);
+                shiftCosts(tree, i, c - tree.cost[i]);
+                rewired.push(tree.nodes[i]);
+            }
+        }
+
+        if (goalIdx < 0 && dist(qNew, goal) <= +etaSlider.value && segmentFree(qNew, goal)) {
+            goalIdx = dist(qNew, goal) > 1e-9 ? addNode(tree, goal.slice(), k) : k;
+            firstCost = tree.cost[goalIdx];
+            firstIter = iters;
+            live.textContent = "First path found after " + iters + " iterations; cost " + fmt(firstCost) + ". RRT* keeps improving it.";
+        }
+        if (goalIdx >= 0) path = branch(tree, goalIdx);
+        last.ext.qParent = tree.nodes[best];
+        last.star = { r, nbrs: nbrs.length, rewired, newParent: best !== near };
+    }
+
+    function step() {
+        if (finished()) return;
+        iters++;
+        if (algo === "connect") stepConnect(); else if (algo === "star") stepStar(); else stepRRT();
+        if (finished()) setRunning(false);
+    }
+
+    function updateCaption() {
+        const name = ALGO_NAME[algo];
+        if (path && algo !== "star") {
+            caption.innerHTML = "<b>Path found</b> after " + iters + " iterations (" + nodeCount()
+                + " nodes), length " + fmt(pathLength()) + ". Note how jagged it is: "
+                + name + " makes no attempt to find a short path.";
+        } else if (!last) {
+            caption.innerHTML = {
+                rrt: "Press <b>Step</b> to run one iteration of RRT, or <b>Run</b> to grow the tree until it reaches <i>q</i><sub><i>G</i></sub>.",
+                connect: "Press <b>Step</b> to run one iteration of RRT-Connect, or <b>Run</b> to grow both trees until they meet.",
+                star: "Press <b>Step</b> to run one iteration of RRT*, or <b>Run</b> to keep growing it; the path keeps shortening after <i>q</i><sub><i>G</i></sub> is reached.",
+            }[algo];
+        } else {
+            const how = last.towardGoal ? "<i>q</i><sub>rand</sub> = <i>q</i><sub><i>G</i></sub> (goal bias)" : "<i>q</i><sub>rand</sub> = " + pt(last.qRand);
+            let text = "Iteration " + iters + ": sampled " + how + ". ";
+            if (!last.ext.ok) {
+                text += "Stepping <i>&eta;</i> toward it gives " + QNEW + " = " + pt(last.ext.qNew)
+                    + ", which <span style=\"color:" + COLOR.reject + "\">collides, so it is discarded.</span>";
+            } else if (last.star) {
+                const s = last.star, m = s.rewired.length;
+                text += QNEW + " = " + pt(last.ext.qNew) + " joins via the cheapest of " + s.nbrs
+                    + " node" + (s.nbrs === 1 ? "" : "s") + " within <i>r</i> = " + fmt(s.r) + " and rewires "
+                    + m + " neighbor" + (m === 1 ? "" : "s") + ".";
+            } else {
+                const owner = algo === "connect" ? "the " + TREE_NAME[last.tree] + " tree" : "the tree";
+                text += "Stepping <i>&eta;</i> from " + owner + " toward it gives " + QNEW + " = " + pt(last.ext.qNew) + ", which ";
+                if (last.connect) {
+                    const k = last.connect.steps.filter((s) => s.ok).length;
+                    text += "is added. The " + TREE_NAME[1 - last.tree] + " tree then steps toward " + QNEW + " "
+                        + k + " time" + (k === 1 ? "" : "s") + " and "
+                        + (last.connect.reached ? "reaches it." : "<span style=\"color:" + COLOR.reject + "\">gets blocked.</span>");
+                } else {
+                    text += "is collision-free, so it is added.";
+                }
+            }
+            if (algo === "star" && path) text += " <b>Best cost " + fmt(trees[0].cost[goalIdx]) + "</b> (first: " + fmt(firstCost) + " at iteration " + firstIter + ").";
+            caption.innerHTML = text;
+        }
+        if (nodeCount() >= MAX_NODES) caption.innerHTML += " Node limit reached.";
+        stepBtn.disabled = finished();
+        runBtn.disabled = stepBtn.disabled;
+    }
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth || 560;
+        const height = width * (WY / WX);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { width, height };
+    }
+
+    let view = { S: 1, H: 1, K: 1 };
+    const px = (p) => [p[0] * view.S, view.H - p[1] * view.S];
+    const world = (x, y) => [x / view.S, (view.H - y) / view.S];
+
+    function dot(p, r, fill, stroke) {
+        const [x, y] = px(p);
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5 * view.K; ctx.stroke(); }
+    }
+
+    function line(a, b, color, width, dash) {
+        const A = px(a), B = px(b);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.setLineDash(dash || []);
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function circle(p, radius, fill, stroke) {
+        const [x, y] = px(p);
+        ctx.beginPath();
+        ctx.arc(x, y, radius * view.S, 0, Math.PI * 2);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.setLineDash([3 * view.K, 3 * view.K]);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function cross(p, color) {
+        const [x, y] = px(p), r = 5 * view.K;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2 * view.K;
+        ctx.beginPath();
+        ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r);
+        ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
+        ctx.stroke();
+    }
+
+    function draw() {
+        const { width: W, height: H } = resizeCanvas();
+        view = { S: W / WX, H, K: Math.min(Math.max(W / 560, 0.7), 1.5) };
+        const K = view.K;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        ctx.fillStyle = COLOR.free;
+        ctx.fillRect(0, 0, W, H);
+        for (const [x0, y0, x1, y1] of obs) {
+            const a = px([x0, y1]), b = px([x1, y0]);
+            ctx.fillStyle = COLOR.obs;
+            ctx.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+            ctx.strokeStyle = COLOR.obsEdge;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(a[0] + 0.5, a[1] + 0.5, b[0] - a[0] - 1, b[1] - a[1] - 1);
+        }
+
+        trees.slice(0, algo === "connect" ? 2 : 1).forEach((tree, t) => {
+            for (let i = 1; i < tree.nodes.length; i++) line(tree.nodes[tree.parent[i]], tree.nodes[i], COLOR.tree[t], 1.2 * K);
+            for (let i = 1; i < tree.nodes.length; i++) dot(tree.nodes[i], 1.8 * K, COLOR.tree[t]);
+        });
+
+        // Goal-connection radius.
+        if (algo !== "connect") circle(goal, +etaSlider.value, "rgba(192, 57, 43, 0.07)", "rgba(192, 57, 43, 0.35)");
+
+        if (path) for (let i = 1; i < path.length; i++) line(path[i - 1], path[i], COLOR.path, 3.5 * K);
+
+        // The last iteration, unless a finished path should stand alone.
+        if (last && !(path && algo !== "star")) {
+            const { ext } = last;
+            line(ext.qNear, last.qRand, COLOR.rand, 1.2 * K, [4 * K, 4 * K]);
+            if (!last.towardGoal) dot(last.qRand, 4 * K, null, COLOR.rand);
+            if (last.connect) {
+                // Thin segments plus a ringed dot per step, so each eta-step reads separately.
+                const c = COLOR.tree[1 - last.tree];
+                for (const s of last.connect.steps) {
+                    if (s.ok) line(s.qNear, s.qNew, c, 1.8 * K);
+                    else { line(s.qNear, s.qNew, COLOR.reject, 2 * K, [3 * K, 3 * K]); cross(s.qNew, COLOR.reject); }
+                }
+                for (const s of last.connect.steps) if (s.ok) dot(s.qNew, 4 * K, c, COLOR.free);
+            }
+            if (last.star) {
+                circle(ext.qNew, last.star.r, "rgba(19, 141, 117, 0.06)", "rgba(19, 141, 117, 0.45)");
+                for (const q of last.star.rewired) line(ext.qNew, q, COLOR.rewire, 2.5 * K);
+            }
+            if (ext.ok) {
+                line(ext.qParent || ext.qNear, ext.qNew, COLOR.fresh, 2.5 * K);
+                dot(ext.qNew, 4.5 * K, COLOR.fresh, COLOR.border);
+            } else {
+                line(ext.qNear, ext.qNew, COLOR.reject, 2 * K, [3 * K, 3 * K]);
+                cross(ext.qNew, COLOR.reject);
+            }
+        }
+
+        dot(start, 7 * K, COLOR.start, COLOR.border);
+        dot(goal, 7 * K, COLOR.goal, COLOR.border);
+
+        ctx.strokeStyle = COLOR.border;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(0.75, 0.75, W - 1.5, H - 1.5);
+
+        etaOut.textContent = fmt(+etaSlider.value);
+        biasOut.textContent = Math.round(+biasSlider.value * 100) + "%";
+        updateCaption();
+        canvas.setAttribute("aria-label", "Configuration space with " + obs.length + " obstacles, running "
+            + ALGO_NAME[algo] + ". " + nodeCount() + " nodes after " + iters
+            + " iterations" + (path ? "; a path to the goal was found." : "."));
+    }
+
+    function frame() {
+        if (!running) return;
+        // Once RRT* has a path, refinement is slow to watch one iteration at a time.
+        const n = algo === "star" && path ? 5 : 1;
+        for (let i = 0; i < n; i++) step();
+        draw();
+        rafId = requestAnimationFrame(frame);
+    }
+
+    function setRunning(on) {
+        running = on;
+        runBtn.setAttribute("aria-pressed", String(on));
+        runBtn.textContent = on ? "Pause" : "Run";
+        cancelAnimationFrame(rafId);
+        if (on) rafId = requestAnimationFrame(frame);
+    }
+
+    // Dragging q_I or q_G restarts the search from scratch.
+    function handleAt(e) {
+        const r = canvas.getBoundingClientRect();
+        const p = world(e.clientX - r.left, e.clientY - r.top);
+        const tol = 14 * view.K / view.S;
+        if (dist(p, start) < tol) return "start";
+        if (dist(p, goal) < tol) return "goal";
+        return null;
+    }
+    canvas.addEventListener("pointerdown", (e) => {
+        drag = handleAt(e);
+        if (drag) canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+        if (!drag) {
+            canvas.style.cursor = handleAt(e) ? "grab" : "";
+            return;
+        }
+        const r = canvas.getBoundingClientRect();
+        const p = world(e.clientX - r.left, e.clientY - r.top);
+        if (!pointFree(p)) return;
+        if (drag === "start") start = p; else goal = p;
+        resetTree();
+    });
+    const endDrag = () => { drag = null; };
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+    // Only block page scrolling when the touch lands on a draggable point.
+    canvas.addEventListener("touchstart", (e) => {
+        const t = e.touches[0];
+        if (t && handleAt(t)) e.preventDefault();
+    }, { passive: false });
+
+    stepBtn.addEventListener("click", () => { setRunning(false); step(); draw(); });
+    runBtn.addEventListener("click", () => setRunning(!running));
+    resetBtn.addEventListener("click", () => loadMap(mapKey));
+    mapBtns.forEach((b) => b.addEventListener("click", () => loadMap(b.dataset.map)));
+    algoBtns.forEach((b) => b.addEventListener("click", () => setAlgo(b.dataset.algo)));
+    etaSlider.addEventListener("input", draw);
+    biasSlider.addEventListener("input", draw);
+    window.addEventListener("resize", draw);
+    loadMap(mapKey);
+})();
+</script>
