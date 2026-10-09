@@ -864,6 +864,73 @@ code.verbatim-inline {
 .rrt-swatch-new {
   background: #b26a00;
 }
+.note-widget-box.km-box {
+  max-width: 38em;
+  padding: 0.9em 1.25em;
+}
+.km-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em 0.75em;
+}
+.km-actions {
+  display: flex;
+  gap: 0.4em;
+}
+.km-actions .note-widget-btn {
+  font-size: 0.85em;
+  padding: 0.4em 0.6em;
+  white-space: nowrap;
+}
+/* Fits "Pause" too, so toggling doesn't resize the button. */
+.km-actions .km-run-btn {
+  min-width: 4.2em;
+}
+.km-canvas {
+  margin-top: 0.6em;
+}
+.km-loss-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3em 1em;
+  margin-top: 0.8em;
+  padding-top: 0.6em;
+  border-top: 1px solid #e6e0d6;
+  font-size: 0.85em;
+}
+.km-loss-head .arm-legend {
+  margin: 0;
+  font-size: 1em;
+}
+.km-frac {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  font-size: 0.8em;
+  line-height: 1.1;
+  text-align: center;
+}
+.km-frac > :first-child {
+  border-bottom: 1px solid currentColor;
+}
+.km-swatch-assign {
+  background: #2f2a24;
+}
+.km-swatch-update {
+  box-shadow: inset 0 0 0 1.5px #2f2a24;
+}
+.km-box .km-loss {
+  margin-top: 0.3em;
+}
+.km-box .note-widget-row label {
+  flex: 0 0 1.5em;
+}
+.km-box .note-widget-row output {
+  flex: 0 0 1.5em;
+}
 .gimbal-buttons {
   display: flex;
   flex-wrap: wrap;

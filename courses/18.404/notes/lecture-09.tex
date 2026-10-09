@@ -1,0 +1,179 @@
+\lecture{9}
+\title{Reducibility}
+
+\begin{document}
+
+\subsection{Reducibility}
+
+\begin{theorem}{Halting Problem}
+    The language $\mathrm{HALT}_{\mathrm{TM}} :=
+    \{\langle M, w \rangle \mid M \text{ is a TM that halts on } w\}$
+    is undecidable.
+\end{theorem}
+
+\begin{proof}
+    Our strategy will be to use the undecidability of
+    $A_{\mathrm{TM}} := \{\langle M, w \rangle \mid
+    M \text{ is a TM that accepts } w\}$ from
+    \href{/18.404/lectures/8/#a-tm-undecidability}{Lecture 8}.
+
+    Suppose FTSOC that there is a TM $R$
+    that decides $\mathrm{HALT}_{\mathrm{TM}}$.
+    Then one can construct $S$
+    that does the following on $\langle M, w \rangle$.
+    \begin{itemize}
+        \item Run $R$ on $\langle M, w \rangle$,
+        which, in finite time, must determine whether
+        $M$ halts on $w$.
+        \begin{itemize}
+            \item If $M$ is known to halt on $w$, then
+            $S$ should just run $M$ on $w$ and return the result.
+            \item If $M$ is known not to halt on $w$, then
+            $S$ should just return \textsc{Reject}.
+        \end{itemize}
+    \end{itemize}
+    So the decidability of $\mathrm{HALT}_{\mathrm{TM}}$
+    implies the decidability of $A_{\mathrm{TM}}$,
+    contradiction. ~ $\blacksquare$
+\end{proof}
+
+The above proof is an example
+of a broader proof technique: \textbf{reduction.}
+
+\textbf{Definition.}
+We say that a language $A$ is \textbf{reducible} to a language $B$
+if we can decide $A$ using a decider for $B$.
+
+\begin{theorem}{Reducibility and Decidability}
+    Suppose language $A$ is reducible to language $B$.
+    Then the following are true:
+    \begin{itemize}
+        \item If $B$ is decidable, then $A$ is decidable.
+        \item If $A$ is undecidable, then $B$ is undecidable.
+    \end{itemize}
+\end{theorem}
+
+None of this is particularly nonobvious.
+
+\begin{theorem}{$E_{\mathrm{TM}}$}
+    The language $E_{\mathrm{TM}} := \{ \langle M \rangle \mid
+    M \text{ is a TM and }  L(M) = \emptyset \}$
+    is undecidable.
+\end{theorem}
+
+\begin{proof}
+    Recall from \href{/18.404/lectures/8/#a-tm-undecidability}{Lecture 8}
+    that $A_{\mathrm{TM}}$ is undecidable.
+    It therefore suffices to prove that
+    $A_{\mathrm{TM}}$ reduces to $E_{\mathrm{TM}}$.
+
+    Suppose we have a decider $R$ for $E_{\mathrm{TM}}$.
+    Then we can construct a decider $S$ for $A_{\mathrm{TM}}$
+    that does the following on $\langle M, w \rangle$.
+    \begin{itemize}
+        \item Construct a Turing machine $M'$ that
+        does the following on input $w'$.
+        \begin{itemize}
+            \item If $w' \neq w$, instantly \textsc{Reject}.
+            \item If $w' = w$, run the instructions of $M$
+            (on input $w' = w$).
+        \end{itemize}
+        \item Now $S$ just returns the opposite of the result of $R$
+        on input $\langle M' \rangle$.
+        ~ $\blacksquare$
+    \end{itemize}
+\end{proof}
+
+\subsection{Mapping Reducibility}
+
+\textbf{Definition.}
+We say that a language $A$ is \textbf{mapping reducible} to a language $B$
+(denoted $A \leq_m B$) if there is a computable function
+(i.e., computable via Turing machine)
+$f \colon \Sigma^* \to \Sigma^*$ such that
+$w \in A$ if and only if $f(w) \in B$ for all $w \in \Sigma^*$.
+
+\begin{theorem}{Mapping Reducibility and Turing-Recognizability}
+    If $A \leq_m B$, then the following are true.
+    \begin{itemize}
+        \item If $B$ is Turing-recognizable,
+        then $A$ is Turing-recognizable.
+        \item If $A$ is Turing-unrecognizable,
+        then $B$ is Turing-unrecognizable.
+        \item If $B$ is decidable, then $A$ is decidable.
+    \end{itemize}
+\end{theorem}
+
+Again, none of this is particularly nonobvious.
+
+\begin{theorem}{$EQ_{\mathrm{TM}}$}
+    The language $EQ_{\mathrm{TM}} := \{\langle B, C \rangle \mid
+    B \text{ and } C \text{ are TMs with } L(B) = L(C)\}$
+    is not Turing-recognizable.
+\end{theorem}
+
+\begin{proof}
+    Recall from \href{/18.404/lectures/8/#turing-unrecognizable}{Lecture 8}
+    that $\overline{A_{\mathrm{TM}}} := \{\langle M, w \rangle \mid
+    M \text{ is a TM that does not accept } w\}$ is Turing-unrecognizable.
+
+    It therefore suffices to prove that
+    $\overline{A_{\mathrm{TM}}} \leq_m EQ_{\mathrm{TM}}$.
+    In other words, we seek a map $f$ such that:
+    \[
+    f \colon \langle M, w \rangle \mapsto \langle B, C \rangle
+    ~~~ \text{ such that } ~~~
+    \boxed{\langle M, w \rangle \in \overline{A_{\mathrm{TM}}}
+    \iff \langle B, C \rangle \in EQ_{\mathrm{TM}}}
+    \]
+    We'll define the image $\langle B, C \rangle$
+    of $f$ on $\langle M, w \rangle$ like so.
+    \begin{itemize}
+        \item Take $B$ to always return \textsc{Reject}.
+        \item Take $C$ to be the Turing machine that
+        just runs $M$ on $w$ (independent of the input $x$).
+        \begin{itemize}
+            \item Note that $C$ might \textsc{Accept},
+            or \textsc{Reject}, or even loop.
+        \end{itemize}
+    \end{itemize}
+    You can check for yourself that
+    the boxed equivalence ($\iff$) holds for this $f$.
+    ~ $\blacksquare$
+\end{proof}
+
+And one more example.
+
+\begin{theorem}{$\overline{EQ_{\mathrm{TM}}}$}
+    The language $\overline{EQ_{\mathrm{TM}}} := \{\langle B, C \rangle \mid
+    B \text{ and } C \text{ are TMs with } L(B) \neq L(C)\}$
+    is not Turing-recognizable.
+\end{theorem}
+
+\begin{proof}
+    Again, it suffices to prove that
+    $\overline{A_{\mathrm{TM}}} \leq_m \overline{EQ_{\mathrm{TM}}}$.
+    In other words, we seek a map $f$ such that:
+    \[
+    f \colon \langle M, w \rangle \mapsto \langle B, C \rangle
+    ~~~ \text{ such that } ~~~
+    \boxed{\langle M, w \rangle \in \overline{A_{\mathrm{TM}}}
+    \iff \langle B, C \rangle \in \overline{EQ_{\mathrm{TM}}}}
+    \]
+    The image $\langle B, C \rangle$ of $\langle M, w \rangle$ under $f$
+    is almost entirely the same as before.
+    \begin{itemize}
+        \item Take $B$ to always return \textsc{Accept}.
+        \item Take $C$ to be the Turing machine that
+        just runs $M$ on $w$ (independent of the input $x$).
+        \begin{itemize}
+            \item Note that $C$ might \textsc{Accept},
+            or \textsc{Reject}, or even loop.
+        \end{itemize}
+    \end{itemize}
+    The only thing that changed is that
+    $B$ now always returns \textsc{Accept} instead of \textsc{Reject}.
+    Check for yourself that this works. ~ $\blacksquare$
+\end{proof}
+
+\end{document}

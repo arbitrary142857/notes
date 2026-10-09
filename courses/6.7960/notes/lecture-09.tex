@@ -1,0 +1,236 @@
+\lecture{9}
+\title{Representation Learning: Introduction and Methods}
+
+\begin{document}
+
+\subsection{Representations}
+
+Solving hard problems oftentimes requires finding good \emph{representations}.
+\begin{itemize}
+    \item The game of Go was thought to be very hard
+    because it has $3^{19 \times 19}$ possible states.
+    \item Image analysis was thought to be very hard
+    because it has $256^{3 \times 500 \times 500}$ possible states (say).
+\end{itemize}
+But we've seen in \href{/6.7960/lectures/4}{Lecture 4} that there are tricks
+that improve our representation of an image---specifically,
+our representation consists of \emph{convolutions} of the image.
+
+\textbf{Definition.}
+Given a data domain $\mathcal{X}$,
+a \textbf{representation} is a function $f \colon \mathcal{X} \to \mathbb{R}^d$
+that assigns a feature vector to each input $x \in \mathcal{X}$.
+
+\textbf{Example.}
+We might represent an image with one-hot vectors,
+where each vector states which cells contain, say, a bird.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/bird-representation}}
+\end{center}
+Alternatively, one part of a representation
+might answer whether each cell of an image contains, say, a T-junction.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/T-junction-representation}}
+\end{center}
+
+And, of course, we can chain representations together.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/chained-representations.png}}
+\end{center}
+
+In fact, we can also \textbf{transfer} representations;
+not only can a model learn things about its data set,
+but it can also learn representations
+that might be useful for other data sets, too!
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/transfer-representations.png}}
+\end{center}
+
+\subsection{Unsupervised Learning: Auxiliary Targets}
+
+Traditional learning methods (i.e., \textbf{supervised learning})
+require data $X$ that is \emph{labeled} with outputs $Y$.
+
+But labeling data costs time and money,
+and the results can be biased.
+What if we could still learn things without labels---some sort of
+\textbf{unsupervised learning}, perhaps?
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/transfer-representations.png}}
+\end{center}
+Well, as we just saw in the previous section,
+\emph{representations} are learnable even on unlabeled data sets,
+particularly if the \textbf{auxiliary target} used for the unlabeled data sets
+does not require labels.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/unsupervised-learning.png}}
+\end{center}
+There are two main kinds of auxiliary targets
+(i.e., ways to define a loss for our representation).
+\begin{itemize}
+    \item \textbf{Reconstruction-based.}
+    How much does the data change
+    when it is encoded and then decoded?
+    \begin{center}
+        \frame{\includegraphics[width=0.4\textwidth]{lecture-09/reconstruction-based.png}}
+    \end{center}
+    Here, loss is defined in the input space.
+    \item \textbf{Similarity-based.}
+    Is the difference between two inputs
+    similar to the difference between their encodings?
+    \begin{center}
+        \frame{\includegraphics[width=0.4\textwidth]{lecture-09/similarity-based.png}}
+    \end{center}
+    Interestingly, loss is defined here in the latent space.
+\end{itemize}
+
+\subsection{Reconstruction-Based Methods}
+
+We discuss three learning methods
+that work well with reconstruction-based learning.
+\begin{quote}
+    \textbf{K-means Clustering.}
+    Given some data, we want to group it into $k$ clusters
+    based on proximity.
+    \begin{enumerate}
+        \item Our representation will be a set of $k$ \underline{centers}
+        $\{c(i)\}_{i = 1}^k$, so that $x$ is in the $i^{\text{th}}$ cluster
+        if the center closest to it is $c(i)$.
+        \item First, initialize $\{c(i)\}_{i = 1}^k$ randomly.
+        \item Then repeatedly replace each center $c(i)$
+        with the centroid of its cluster.
+    \end{enumerate}
+    The loss of a clustering is given by:
+    \[
+    \mathcal{L}(\{c(i)\})
+    := \sum_{x \in X}
+    \|x - c(i(x))\|^2
+    = \sum_{x \in X}
+    \|x - D(E(x))\|^2
+    \text{ where } D \text{ is the decoder and }
+    E \text{ is the encoder.}
+    \]
+    Notice how, as indicated by the expression above,
+    the loss of k-means clustering matches that of reconstruction-based loss.
+
+    \includewidget{lecture-09/k-means}
+
+    You can see k-means clustering in action using the
+    (warning: AI-generated) widget above.
+\end{quote}
+
+A k-means clustering representation for MNIST digits
+is a collection of $k$ centers, where each center is an image.
+Here's how the result might look for $k = 64$, for example.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-09/k-means-MNIST.png}}
+\end{center}
+
+\begin{quote}
+    \textbf{Principal Component Analysis (PCA).}
+    Recall \href{/18.701/lectures/19/#spectral-application-2-principal-component-analysis}{Lecture 19}
+    of 18.701.  The point is that:
+    \begin{itemize}
+        \item Say $W_k \in \mathbb{R}^{d \times k}$
+        is a matrix consisting of the $k$ eigenvectors of $X^{\top}X$
+        with largest eigenvalue.
+        \item Our encoder then takes $x$ and expresses it
+        in the coordinates of the principal basis:
+        $x \mapsto W_k^{\top}x$.
+        \item Our decoder just undoes this map:
+        $z \mapsto W_k z$.
+    \end{itemize}
+    The loss of PCA is given by:
+    \[
+    \mathcal{L}(W_k) :=
+    \|X - XW_kW_k^{\top}\|_F^2
+    = \sum_{x \in X} \|x - D(E(x))\|^2,
+    \text{ where } D \text{ is the decoder and }
+    E \text{ is the encoder.}
+    \]
+\end{quote}
+
+Here's the result of applying PCA on a dataset of faces.
+\begin{center}
+    \frame{\includegraphics[width=0.25\textwidth]{lecture-09/eigenfaces.png}}
+\end{center}
+
+\subsection{Autoencoders}
+
+All of these methods discussed so far are precursors of \textbf{autoencoders}.
+
+\textbf{Definition.}
+An \textbf{autoencoder} is any representation that
+learns its \textbf{encoder} and \textbf{decoder} via deep neural networks
+(optimized using backpropagation).
+Its loss, expectedly, is
+$\mathcal{L}(D, E) := \sum_{x \in X} \|x - D(E(x))\|^2$.
+\begin{center}
+    \frame{\includegraphics[width=0.2\textwidth]{lecture-09/autoencoder.png}}
+\end{center}
+When training an autoencoder, it sometimes helps
+to corrupt (add noise to) the input data
+and train the model to recover the clean input.
+This produces a \textbf{denoising autoencoder (DAE)}.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/DAE.png}}
+\end{center}
+There is also \textbf{autoencoding with masking (MAE)}.
+Here, we train the model to fill in intentionally-masked input.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/MAE.png}}
+\end{center}
+
+We define the loss to be
+$\mathcal{L} := \frac{1}{|M|} \sum_{i \in M} \|x_i - \hat{x}_i\|^2$,
+where $M$ is the set of masked patches,
+and $\hat{x}_i$ and $x_i$ are the model's guess and the truth, respectively.
+
+\subsection{Similarity-Based Methods: Contrastive Learning}
+
+There are many approaches to similarity-based learning---we
+focus on discussing \textbf{contrastive learning} here.
+
+As a warmup, let's suppose we are in \textbf{supervised learning},
+but now equipped with our newly learned \textbf{encoder}.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-09/contrastive-learning.png}}
+\end{center}
+Now that everything is a vector, we might assign a loss
+by using the dot products $q_ik_j$ like so:
+\begin{itemize}
+    \item Penalize dot products that are large
+    when the query and key do not match.
+    \item Penalize dot products that are small
+    when the query and key do match.
+\end{itemize}
+We can do this with the loss
+$\mathcal{L} := -\log \frac{\exp(qk_+)}{\sum_j \exp(qk_j)}$,
+where $k_+$ is the key matching the query $q$.
+(This is cross-entropy loss.)
+
+Now for the \textbf{self-supervised learning} case.
+Instead of taking dot products between
+image encodings and vocabulary encodings,
+we can take dot products
+between encodings of variations of the same image.
+\begin{center}
+    \frame{\includegraphics[width=0.5\textwidth]{lecture-09/self-supervised-contrastive.png}}
+\end{center}
+One variation on this
+is \textbf{Momentum Contrast (MoCo)},
+where the key encoder is a moving average of the query encoder.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/MoCo.png}}
+\end{center}
+A simpler variation is \textbf{SimCLR} (Simple Framework for Contrastive Learning),
+where the two encoders share weights.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-09/SimCLR.png}}
+\end{center}
+There are many other similarity-based methods that we won't go over, too.
+\begin{center}
+    \frame{\includegraphics[width=0.6\textwidth]{lecture-09/similarity-methods.png}}
+\end{center}
+
+\end{document}

@@ -1,0 +1,502 @@
+<div class="note-widget-box km-box">
+<div class="km-toolbar">
+    <div class="arm-seg km-data" role="group" aria-label="Data set">
+        <button type="button" class="arm-seg-btn" data-set="blobs" aria-pressed="true">Blobs</button>
+        <button type="button" class="arm-seg-btn" data-set="uneven" aria-pressed="false">Uneven</button>
+        <button type="button" class="arm-seg-btn" data-set="rings" aria-pressed="false">Rings</button>
+    </div>
+    <div class="arm-seg km-inits" role="group" aria-label="Initialization">
+        <button type="button" class="arm-seg-btn" data-init="random" aria-pressed="true">Random</button>
+        <button type="button" class="arm-seg-btn" data-init="pp" aria-pressed="false">k-means++</button>
+    </div>
+    <div class="km-actions">
+        <button type="button" class="note-widget-btn km-step-btn">Step</button>
+        <button type="button" class="note-widget-btn km-run-btn" aria-pressed="false">Run</button>
+        <button type="button" class="note-widget-btn km-reset-btn">Reset</button>
+    </div>
+</div>
+
+<canvas class="km-canvas" role="img" aria-label="Two-dimensional data points with k-means centers."></canvas>
+
+<p class="sing-formula km-caption"></p>
+<span class="arm-live km-live" aria-live="polite"></span>
+
+<div class="km-loss-head">
+    <span><b>Loss</b> <i>L</i> = <span class="km-frac"><span>1</span><span><i>N</i></span></span>&thinsp;&sum;<sub><i>x</i></sub> &Vert;<i>x</i> &minus; <i>c</i>(<i>x</i>)&Vert;<sup>2</sup>
+        (mean squared distance to the assigned center)</span>
+    <span class="arm-legend">
+        <span><span class="arm-swatch km-swatch-assign"></span><span>after assignment</span></span>
+        <span><span class="arm-swatch km-swatch-update"></span><span>after update</span></span>
+    </span>
+</div>
+<canvas class="km-loss" role="img" aria-label="Loss after each half-step of k-means."></canvas>
+
+<div class="note-widget-controls">
+    <div class="note-widget-row">
+        <label for="km-k"><span><i>k</i></span></label>
+        <input type="range" id="km-k" min="1" max="8" step="1" value="4">
+        <output id="km-k-out">4</output>
+    </div>
+</div>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const canvas = root.querySelector(".km-canvas");
+    const ctx = canvas.getContext("2d");
+    const lossCanvas = root.querySelector(".km-loss");
+    const lctx = lossCanvas.getContext("2d");
+    const caption = root.querySelector(".km-caption");
+    const live = root.querySelector(".km-live");
+    const kSlider = root.querySelector("#km-k");
+    const kOut = root.querySelector("#km-k-out");
+    const stepBtn = root.querySelector(".km-step-btn");
+    const runBtn = root.querySelector(".km-run-btn");
+    const resetBtn = root.querySelector(".km-reset-btn");
+    const dataBtns = Array.from(root.querySelectorAll(".km-data .arm-seg-btn"));
+    const initBtns = Array.from(root.querySelectorAll(".km-inits .arm-seg-btn"));
+
+    const COLOR = {
+        bg: "#ffffff",
+        border: "#2f2a24",
+        none: "#b8aea2",
+        trail: "#5d5447",
+        grid: "#e6e0d6",
+        axis: "#8a8178",
+        loss: "#2f2a24",
+        cluster: ["#2b6cb0", "#c0392b", "#3a9e4a", "#b26a00", "#7b4fa0", "#138d75", "#c2185b", "#5d5447"],
+    };
+    const REGION_ALPHA = 0.13;
+    const WX = 10, WY = 6; // data live in [0, WX] x [0, WY]
+    const STEP_MS = 450; // delay between half-steps while running
+    const INIT_NAME = { random: "random data points", pp: "k-means++" };
+    const DEFAULT_K = { blobs: 4, uneven: 3, rings: 2 };
+
+    let setKey = "blobs";
+    let initKey = "random";
+    let X = []; // data points [x, y]
+    let mu = []; // centroids
+    let assign = null; // assign[i] = cluster of point i, or null before the first assignment
+    let phase = "init"; // what the last half-step was: "init" | "assign" | "update"
+    let iters = 0, changed = 0, moved = 0, empty = [], trails = [];
+    let losses = []; // [{ phase, iter, value }] after every half-step
+    let converged = false, running = false, timer = 0;
+    let drag = -1;
+
+    const dist2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+    const fmt = (v) => v.toFixed(3);
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+    function gauss() {
+        let u = 0;
+        while (u === 0) u = Math.random();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random());
+    }
+    function blob(c, sx, sy, n) {
+        for (let i = 0; i < n; i++) {
+            X.push([clamp(c[0] + sx * gauss(), 0.1, WX - 0.1), clamp(c[1] + sy * gauss(), 0.1, WY - 0.1)]);
+        }
+    }
+    function ring(c, r, noise, n) {
+        for (let i = 0; i < n; i++) {
+            const t = Math.random() * 2 * Math.PI, rr = r + noise * gauss();
+            X.push([c[0] + rr * Math.cos(t), c[1] + rr * Math.sin(t)]);
+        }
+    }
+
+    function makeData(key) {
+        X = [];
+        if (key === "blobs") {
+            // Four well-separated blobs at random spots.
+            const centers = [];
+            for (let tries = 0; centers.length < 4; tries++) {
+                if (tries % 500 === 0) centers.length = 0; // stuck: start over
+                const c = [1.5 + Math.random() * (WX - 3), 1.3 + Math.random() * (WY - 2.6)];
+                if (centers.every((d) => dist2(c, d) > 2.6 ** 2)) centers.push(c);
+            }
+            centers.forEach((c) => blob(c, 0.45, 0.45, 55));
+        } else if (key === "uneven") {
+            // One wide blob next to two tight ones: k-means cuts the wide one.
+            blob([3.4, 3], 1.15, 1.0, 170);
+            blob([7.4, 4.5], 0.3, 0.3, 30);
+            blob([7.8, 1.6], 0.3, 0.3, 30);
+        } else {
+            // Two concentric rings: not separable by nearest-centroid boundaries.
+            ring([5, 3], 0.8, 0.12, 70);
+            ring([5, 3], 2.3, 0.12, 170);
+        }
+    }
+
+    // Random: k distinct data points. k-means++: each new centroid is a data point
+    // drawn with probability proportional to its squared distance to the nearest existing one.
+    function initCentroids() {
+        const k = +kSlider.value;
+        if (initKey === "random") {
+            const idx = X.map((_, i) => i);
+            for (let i = 0; i < k; i++) {
+                const j = i + Math.floor(Math.random() * (idx.length - i));
+                [idx[i], idx[j]] = [idx[j], idx[i]];
+            }
+            mu = idx.slice(0, k).map((i) => X[i].slice());
+        } else {
+            mu = [X[Math.floor(Math.random() * X.length)].slice()];
+            while (mu.length < k) {
+                const d = X.map((x) => Math.min(...mu.map((m) => dist2(x, m))));
+                let r = Math.random() * d.reduce((a, b) => a + b, 0), i = 0;
+                while (i < X.length - 1 && r >= d[i]) r -= d[i++];
+                mu.push(X[i].slice());
+            }
+        }
+    }
+
+    function restart() {
+        setRunning(false);
+        initCentroids();
+        assign = null;
+        phase = "init";
+        iters = 0;
+        trails = [];
+        losses = [];
+        converged = false;
+        live.textContent = "";
+        draw();
+    }
+
+    function loadData(key) {
+        setKey = key;
+        dataBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === key)));
+        kSlider.value = DEFAULT_K[key];
+        makeData(key);
+        restart();
+    }
+
+    function nearest(p) {
+        let best = 0, bd = Infinity;
+        mu.forEach((m, j) => {
+            const d = dist2(p, m);
+            if (d < bd) { bd = d; best = j; }
+        });
+        return best;
+    }
+
+    // Mean squared distance from each point to its assigned centroid.
+    const loss = () => X.reduce((acc, x, i) => acc + dist2(x, mu[assign[i]]), 0) / X.length;
+
+    function assignStep() {
+        iters++;
+        const next = X.map(nearest);
+        changed = assign ? next.filter((c, i) => c !== assign[i]).length : X.length;
+        // Iteration 1 always "changes" every point, so it can't be the converged one.
+        converged = assign !== null && changed === 0;
+        assign = next;
+        trails = [];
+        phase = "assign";
+        losses.push({ phase, iter: iters, value: loss() });
+        if (converged) {
+            setRunning(false);
+            live.textContent = "Converged after " + iters + " iterations; error " + fmt(loss()) + ".";
+        }
+    }
+
+    function updateStep() {
+        const sum = mu.map(() => [0, 0, 0]);
+        X.forEach((x, i) => {
+            const s = sum[assign[i]];
+            s[0] += x[0]; s[1] += x[1]; s[2]++;
+        });
+        empty = [];
+        trails = [];
+        moved = 0;
+        mu = mu.map((m, j) => {
+            const [sx, sy, n] = sum[j];
+            if (n === 0) { empty.push(j); return m; }
+            const next = [sx / n, sy / n];
+            moved = Math.max(moved, Math.sqrt(dist2(m, next)));
+            trails.push([m, next, j]);
+            return next;
+        });
+        phase = "update";
+        losses.push({ phase, iter: iters, value: loss() });
+    }
+
+    function step() {
+        if (converged) return;
+        if (phase === "assign") updateStep(); else assignStep();
+    }
+
+    function updateCaption() {
+        const L = "<i>L</i> = " + (assign ? fmt(loss()) : "&mdash;");
+        let text;
+        if (phase === "init") {
+            text = "Centers <i>c</i>(1), &hellip;, <i>c</i>(<i>k</i>) start at "
+                + INIT_NAME[initKey] + " (drag them to choose your own). Press <b>Step</b> to assign each point to its nearest center.";
+        } else if (converged) {
+            text = "<b>Converged</b> after " + iters + " iterations: no point changed cluster, so the centers are fixed. "
+                + L + ". Press <b>Reset</b> to try another initialization; different starts can converge to different <i>L</i>.";
+        } else if (phase === "assign") {
+            text = "Iteration " + iters + ", <b>assignment step</b>: each point joins its nearest center ("
+                + changed + " point" + (changed === 1 ? "" : "s") + " changed cluster). " + L + ".";
+        } else {
+            text = "Iteration " + iters + ", <b>update step</b>: each center moves to the mean of its points (largest move "
+                + moved.toFixed(2) + "). " + L + ". Points whose color no longer matches their shaded region switch on the next step.";
+            if (empty.length) text += " Cluster " + empty.map((j) => j + 1).join(", ") + " has no points, so its center stays put.";
+        }
+        caption.innerHTML = text;
+        stepBtn.disabled = converged;
+        runBtn.disabled = converged;
+    }
+
+    function resize(c, aspect) {
+        const dpr = window.devicePixelRatio || 1;
+        const width = c.clientWidth || 560;
+        const height = width * aspect;
+        c.width = Math.round(width * dpr);
+        c.height = Math.round(height * dpr);
+        c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { width, height };
+    }
+
+    let view = { S: 1, H: 1, K: 1 };
+    const px = (p) => [p[0] * view.S, view.H - p[1] * view.S];
+    const world = (x, y) => [x / view.S, (view.H - y) / view.S];
+
+    function hexToRgb(hex) {
+        const n = parseInt(hex.slice(1), 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    // Shade each centroid's nearest-centroid (Voronoi) region on a coarse grid.
+    function drawRegions(W, H) {
+        const cell = 4;
+        const cols = Math.ceil(W / cell), rows = Math.ceil(H / cell);
+        const img = ctx.createImageData(cols, rows);
+        const rgb = COLOR.cluster.map(hexToRgb);
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const j = nearest(world((c + 0.5) * cell, (r + 0.5) * cell));
+                const o = 4 * (r * cols + c);
+                // Blend over white by hand: putImageData ignores alpha compositing.
+                for (let t = 0; t < 3; t++) img.data[o + t] = Math.round(255 + (rgb[j][t] - 255) * REGION_ALPHA);
+                img.data[o + 3] = 255;
+            }
+        }
+        const off = document.createElement("canvas");
+        off.width = cols;
+        off.height = rows;
+        off.getContext("2d").putImageData(img, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(off, 0, 0, cols * cell, rows * cell);
+    }
+
+    function drawCentroid(m, j) {
+        const [x, y] = px(m), K = view.K, r = 8 * K;
+        ctx.fillStyle = COLOR.cluster[j];
+        ctx.strokeStyle = COLOR.border;
+        ctx.lineWidth = 2 * K;
+        ctx.beginPath();
+        ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    function draw() {
+        const { width: W, height: H } = resize(canvas, WY / WX);
+        view = { S: W / WX, H, K: Math.min(Math.max(W / 560, 0.7), 1.5) };
+        const K = view.K;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        ctx.fillStyle = COLOR.bg;
+        ctx.fillRect(0, 0, W, H);
+        drawRegions(W, H);
+
+        X.forEach((x, i) => {
+            const [a, b] = px(x);
+            ctx.fillStyle = assign ? COLOR.cluster[assign[i]] : COLOR.none;
+            ctx.beginPath();
+            ctx.arc(a, b, 3 * K, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Where each centroid came from in the last update step.
+        for (const [a, b, j] of trails) {
+            const A = px(a), B = px(b);
+            ctx.strokeStyle = COLOR.trail;
+            ctx.lineWidth = 1.5 * K;
+            ctx.setLineDash([4 * K, 4 * K]);
+            ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.strokeStyle = COLOR.cluster[j];
+            ctx.lineWidth = 1.5 * K;
+            ctx.beginPath(); ctx.arc(A[0], A[1], 5 * K, 0, Math.PI * 2); ctx.stroke();
+        }
+        mu.forEach(drawCentroid);
+
+        ctx.strokeStyle = COLOR.border;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(0.75, 0.75, W - 1.5, H - 1.5);
+
+        kOut.textContent = kSlider.value;
+        updateCaption();
+        drawLoss();
+        canvas.setAttribute("aria-label", X.length + " data points with " + mu.length + " centers after "
+            + iters + " iterations of k-means" + (assign ? "; error " + fmt(loss()) + "." : "."));
+    }
+
+    // Round up to 1, 2, 2.5, or 5 times a power of ten.
+    function niceStep(v) {
+        const e = 10 ** Math.floor(Math.log10(v));
+        return [1, 2, 2.5, 5, 10].find((m) => m * e >= v) * e;
+    }
+
+    // Loss after every half-step, on axes that start at 0 so drops read at true scale.
+    // Iteration t's assignment sits at x = t and its update at x = t + 1/2.
+    function drawLoss() {
+        const { width: W, height: H } = resize(lossCanvas, 0.3);
+        const K = view.K;
+        const fs = Math.round(11 * K);
+        const padL = 40 * K, padR = 14 * K, padT = 10 * K, padB = 34 * K;
+        const x0 = padL, x1 = W - padR, y0 = H - padB, y1 = padT;
+        lctx.clearRect(0, 0, W, H);
+        lctx.font = `${fs}px system-ui, -apple-system, sans-serif`;
+        lctx.lineCap = "round";
+
+        // The first loss is the largest, so it fixes the y-range for the whole run.
+        const top = losses.length ? losses[0].value : 1;
+        const dy = niceStep(top / 4);
+        const yMax = Math.max(dy, Math.ceil(top / dy - 1e-9) * dy);
+        const xMax = Math.max(6, iters + 1);
+        const X_ = (t) => x0 + ((t - 0.5) / (xMax - 0.5)) * (x1 - x0);
+        const Y_ = (v) => y0 - (v / yMax) * (y0 - y1);
+        const digits = Math.max(0, -Math.floor(Math.log10(dy) + 1e-9) + (dy / 10 ** Math.floor(Math.log10(dy)) === 2.5 ? 1 : 0));
+
+        lctx.textAlign = "right";
+        lctx.textBaseline = "middle";
+        for (let v = 0; v <= yMax + 1e-9; v += dy) {
+            lctx.strokeStyle = COLOR.grid;
+            lctx.lineWidth = 1;
+            lctx.beginPath(); lctx.moveTo(x0, Y_(v)); lctx.lineTo(x1, Y_(v)); lctx.stroke();
+            lctx.fillStyle = COLOR.axis;
+            lctx.fillText(v.toFixed(digits), x0 - 6 * K, Y_(v));
+        }
+        lctx.textAlign = "center";
+        lctx.textBaseline = "top";
+        const every = Math.ceil(xMax / 12);
+        for (let t = 1; t <= xMax; t += every) lctx.fillText(String(t), X_(t), y0 + 5 * K);
+        lctx.fillText("iteration", (x0 + x1) / 2, y0 + 19 * K);
+        lctx.strokeStyle = COLOR.axis;
+        lctx.beginPath(); lctx.moveTo(x0, y1); lctx.lineTo(x0, y0); lctx.lineTo(x1, y0); lctx.stroke();
+
+        if (!losses.length) {
+            const msg = "Press Step to start", w = lctx.measureText(msg).width + 12 * K;
+            const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2];
+            lctx.clearRect(cx - w / 2, cy - fs, w, 2 * fs);
+            lctx.textBaseline = "middle";
+            lctx.fillText(msg, cx, cy);
+            return;
+        }
+        const pts = losses.map((l) => [X_(l.iter + (l.phase === "update" ? 0.5 : 0)), Y_(l.value)]);
+        lctx.strokeStyle = COLOR.loss;
+        lctx.lineWidth = 1.5 * K;
+        lctx.beginPath();
+        pts.forEach(([x, y], i) => { if (i === 0) lctx.moveTo(x, y); else lctx.lineTo(x, y); });
+        lctx.stroke();
+        losses.forEach((l, i) => {
+            lctx.beginPath();
+            lctx.arc(pts[i][0], pts[i][1], 3.2 * K, 0, Math.PI * 2);
+            lctx.fillStyle = l.phase === "assign" ? COLOR.loss : COLOR.bg;
+            lctx.fill();
+            lctx.stroke();
+        });
+
+        // Label the starting and current values.
+        lctx.fillStyle = COLOR.loss;
+        lctx.textBaseline = "bottom";
+        lctx.textAlign = "left";
+        lctx.fillText(fmt(losses[0].value), pts[0][0] + 6 * K, pts[0][1] - 3 * K);
+        if (losses.length > 1) {
+            const [x, y] = pts[pts.length - 1];
+            const last = losses[losses.length - 1].value;
+            const drop = Math.round(100 * (1 - last / losses[0].value));
+            lctx.font = `600 ${fs}px system-ui, -apple-system, sans-serif`;
+            lctx.textAlign = x > (x0 + x1) / 2 ? "right" : "left";
+            lctx.fillText(fmt(last) + " (−" + drop + "%)", x + (lctx.textAlign === "left" ? 6 : -6) * K, y - 5 * K);
+        }
+        lossCanvas.setAttribute("aria-label", "Loss started at " + fmt(losses[0].value) + " and is now "
+            + fmt(losses[losses.length - 1].value) + " after " + losses.length + " half-steps.");
+    }
+
+    function tick() {
+        step();
+        draw();
+        if (running) timer = setTimeout(tick, STEP_MS);
+    }
+
+    function setRunning(on) {
+        running = on;
+        runBtn.setAttribute("aria-pressed", String(on));
+        runBtn.textContent = on ? "Pause" : "Run";
+        clearTimeout(timer);
+        if (on) tick();
+    }
+
+    // Dragging a centroid restarts from that configuration.
+    function centroidAt(e) {
+        const r = canvas.getBoundingClientRect();
+        const p = world(e.clientX - r.left, e.clientY - r.top);
+        const tol = (14 * view.K / view.S) ** 2;
+        let hit = -1, best = tol;
+        mu.forEach((m, j) => {
+            const d = dist2(p, m);
+            if (d < best) { best = d; hit = j; }
+        });
+        return hit;
+    }
+    canvas.addEventListener("pointerdown", (e) => {
+        drag = centroidAt(e);
+        if (drag >= 0) {
+            setRunning(false);
+            canvas.setPointerCapture(e.pointerId);
+        }
+    });
+    canvas.addEventListener("pointermove", (e) => {
+        if (drag < 0) {
+            canvas.style.cursor = centroidAt(e) >= 0 ? "grab" : "";
+            return;
+        }
+        const r = canvas.getBoundingClientRect();
+        const p = world(e.clientX - r.left, e.clientY - r.top);
+        mu[drag] = [clamp(p[0], 0, WX), clamp(p[1], 0, WY)];
+        assign = null;
+        phase = "init";
+        iters = 0;
+        trails = [];
+        losses = [];
+        converged = false;
+        draw();
+    });
+    const endDrag = () => { drag = -1; };
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+    // Only block page scrolling when the touch lands on a centroid.
+    canvas.addEventListener("touchstart", (e) => {
+        const t = e.touches[0];
+        if (t && centroidAt(t) >= 0) e.preventDefault();
+    }, { passive: false });
+
+    stepBtn.addEventListener("click", () => { setRunning(false); step(); draw(); });
+    runBtn.addEventListener("click", () => setRunning(!running));
+    resetBtn.addEventListener("click", restart);
+    dataBtns.forEach((b) => b.addEventListener("click", () => loadData(b.dataset.set)));
+    initBtns.forEach((b) => b.addEventListener("click", () => {
+        initKey = b.dataset.init;
+        initBtns.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        restart();
+    }));
+    kSlider.addEventListener("input", restart);
+    window.addEventListener("resize", draw);
+    loadData(setKey);
+})();
+</script>
