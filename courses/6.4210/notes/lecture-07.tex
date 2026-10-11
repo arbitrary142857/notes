@@ -1,0 +1,289 @@
+\lecture{7}
+\title{Statics and Grasping}
+
+\begin{document}
+
+\subsection{Forces: Spatial Force}
+
+In this lecture, we'll answer the following question:
+\begin{quote}
+    \textbf{Question.}
+    Given an object I want to grasp,
+    where do I put my fingers,
+    and will the object stay in my hand?
+\end{quote}
+This question involves not just geometry,
+but the relevant \textbf{forces} being applied, too.
+
+\textbf{Definition.}
+We can represent \textbf{spatial force} via
+a vector in $\mathbb{R}^6$ given by:
+\[
+F^{B_p}_C = \begin{bmatrix}
+\tau_C^{B_p} \\ f_C^{B_p}
+\end{bmatrix} ~ \text{ where } 
+\tau^{B_p}_C \in \mathbb{R}^3 \text{ is torque, and }
+f^{B_p}_C \in \mathbb{R}^3 \text{ is translational force.}
+\]
+where $B_p$ is the point on the body $B$ where the force is applied.
+(As with ${}^AV^B_F$, angular stuff goes above translational stuff.)
+
+\begin{theorem}{Spatial Force Properties}
+    We can re-express spatial force in different frames like so:
+    \[
+    F^{B_p}_B = {}^BR^C F^{B_p}_C
+    := \begin{bmatrix}
+    {}^BR^C & 0 \\ 0 & {}^BR^C
+    \end{bmatrix} F^{B_p}_C.
+    \]
+    Furthermore, if a force $i$ acts on body $B$
+    at position $B_{c_i}$, then we get:
+    \[
+    f^B_{i, B} = f^{B_{c_i}}_{i, B}
+    ~~~ \text{ and } ~~~
+    \tau^B_{i, B} = \tau^{B_{c_i}}_{i, B}
+    + {}^Bp^{B_{c_i}} \times f^{B_{c_i}}_{i, B}.
+    \]
+    There's nothing new or complicated here beyond AP Physics I, say.
+\end{theorem}
+
+\begin{remark}
+    It is sometimes convenient to express the cross-product $d \times f$
+    as a matrix multiplication $S(d) f$, given by:
+    \[
+    d \times f = \underbrace{\begin{bmatrix}
+    0 & -d_z & d_y \\ d_z & 0 & -d_x \\ -d_y & d_x & 0
+    \end{bmatrix}}_{S(d)} f.
+    \]
+\end{remark}
+
+It then follows that a body is in \textbf{static equilibrium}
+if the sum of the spatial forces acted upon it is zero.
+
+\begin{remark}
+    The reason why we formalize everything using spatial forces
+    is it naturally gets us to express everything---particularly
+    torques---in the same coordinate frame $B$.
+\end{remark}
+
+For example, we can model two hands grasping on
+opposite faces of a box like so.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-07/grasp-forces.png}}
+\end{center}
+To achieve static equilibrium, note that
+both the translational forces \emph{and}
+torques about $B$ must sum to zero.
+
+\begin{remark}
+    It suffices to only think about statics (i.e., no $F = ma$)
+    because at manipulation speeds,
+    accelerations $a$ are far below $g$.
+\end{remark}
+
+\subsection{Modeling Contacts}
+
+We only model contacts at a \emph{point on a plane}
+(as opposed to, say, a point along an edge).
+
+\begin{remark}
+    If our contact is not a point---for example,
+    the contact between a box and the table it lies on---then
+    we can approximate that contact as
+    the sum of point contacts---for example,
+    the sum of contacts at the four vertices
+    of the bottom face of the box.
+\end{remark}
+
+There are three kinds of point-on-plane contacts.
+\begin{itemize}
+    \item \textbf{Frictionless.}
+    Forces can only be applied perpendicular to the plane.
+    \item \textbf{Point w/ Friction.}
+    Forces can have normal and tangential components,
+    but their ratio must be below $\mu$.
+    \begin{center}
+        \frame{\includegraphics[width=0.2\textwidth]{lecture-07/force-cone.png}}
+    \end{center}
+    Equivalently, forces can only be applied inside the friction cone;
+    analytically, $\sqrt{(f^{c_i}_{C_x})^2 + (f^{c_i}_{C_y})^2}
+    \leq \mu f^{c_i}_{C_z}$.
+    \begin{itemize}
+        \item For the sake of \emph{linear algebra},
+        we oftentimes approximate (discretize) the friction cone as a pyramid.
+    \end{itemize}
+    \item \textbf{Soft Finger.}
+    In addition to forces within the friction cone,
+    you can also apply torques $\tau_{\mathrm{normal}}$ locally
+    if $|\tau_{\mathrm{normal}}| \leq \gamma f^{c_i}_{C_z}$.
+\end{itemize}
+There are some obvious limitations to these models---friction
+is more complicated than just ``$\mu$'',
+and the patch of contact is not just a single point, and so on\dots
+
+\subsection{Grasping: Is It Possible?}
+
+First, some notation that we use for
+mapping multiple applied forces with different contact frames
+into the same body frame.
+
+\textbf{Definition.}
+Say the orientation of the $i^{\text{th}}$ contact frame is given by
+$Q^{(i)} := {}^BR^{C_i} \in \mathbb{R}^{3 \times 3}$,
+meaning the $i^{\text{th}}$ contact frame
+applies a force $f_i \in \mathbb{R}^3$ on body $B$ at position $C_i$.
+Then the force \emph{in the frame of $B$} can be expressed as:
+\[
+F = \sum_{i = 1}^k G_i f_i = G \begin{bmatrix}
+f_1 \\ \vdots \\ f_k
+\end{bmatrix}
+~~~~~ \text{ where } ~~~~~
+G_i := \begin{bmatrix}
+S^{(i)}Q^{(i)} \\ Q^{(i)}
+\end{bmatrix} \in \mathbb{R}^{6 \times 3}
+~ \text{ and } ~
+G := \begin{bmatrix} G_1 & \cdots & G_k \end{bmatrix}
+~ \text{ is the } \textbf{grasp map.}
+\]
+The idea is that each matrix $G_i$
+is the appropriate map from forces $f_i$ expressed in the contact frame
+to forces expressed in the body's frame.
+Here $S^{(i)} := S({}^Bp^{C_i}) \in \mathbb{R}^{3 \times 3}$
+is the ``cross-product matrix'' mentioned in a remark earlier.
+
+The goal of grasping is to answer the following question:
+\begin{quote}
+    \textbf{Question.}
+    Given external forces $F^{\mathrm{ext}}$,
+    is there an \emph{admissible} grasping force $f$
+    such that $Gf + F^{\mathrm{ext}} = 0$ holds?
+
+    (A force $f$ is \emph{admissible} if it lives within the friction cone.)
+\end{quote}
+
+\begin{remark}
+    The grasp map can have a nontrivial null space;
+    two grasping methods can both yield equilibrium.
+    \begin{center}
+        \frame{\includegraphics[width=0.4\textwidth]{lecture-07/grasp-null-space.png}}
+    \end{center}
+    In the diagram above, for example,
+    the hard squeeze is just the light squeeze plus a
+    ``left-right'' squeeze $f_0$ for which $Gf_0 = 0$.
+\end{remark}
+
+\textbf{Definition.}
+The \textbf{grasp wrench space} is the set:
+\[
+    \mathcal{W} :=
+    \left\{ F \mid F = \sum_{i = 1}^k G_i f_i
+    \text{ for some } f_i \in \mathcal{K}_i \right\},
+\]
+where $\mathcal{K}_i$ is the space of admissible grasping forces.
+(Note that this is the \emph{Minkowski sum} of the sets $G_i \mathcal{K}_i$.)
+
+To answer the question from before for \emph{every} $F^{\mathrm{ext}}$,
+it suffices to simply compute $\mathcal{W}$
+and determine whether $0 \in \mathcal{W}$
+(not on its boundary!).
+Since each $\mathcal{K}_i$ is convex,
+we can estimate $\mathcal{W}$ easily by \dots
+\begin{itemize}
+    \item \dots approximating each cone $\mathcal{K}_i$
+    as a finite-vertex convex polyhedron, then \dots
+    \item \dots taking the Minkowski sum of the vertices,
+    then the convex hull of the Minkowski sum.
+\end{itemize}
+
+\subsection{Closure}
+
+\textbf{Definition.}
+Preferably, we want grasps that can hold bodies in place.
+More specifically, a grasp can have\dots
+\begin{itemize}
+    \item \textbf{Form Closure.}
+    The contacts are geometrically positioned
+    such that the body cannot move without penetrating a contact.
+    \item \textbf{Force Closure.}
+    The contact forces have a $\mathcal{W}$
+    universal enough to resist any $F^{\mathrm{ext}}$
+    (i.e., external force and torque).
+\end{itemize}
+Check with yourself that the following make sense;
+dimensionality arguments should suffice.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-07/closure-table.png}}
+\end{center}
+But there's more to a grasp than whether it has force closure or not.
+
+\textbf{Heuristic.} Given a grasp with force closure
+and wrench space $\mathcal{W}$, consider:
+\begin{itemize}
+    \item The ``worst case'' quantity
+    $\epsilon := \min_{F \in \partial\mathcal{W}} \|F\|$.
+    \item The ``average'' quantity
+    $V := \text{the volume of } \mathcal{W}$.
+\end{itemize} 
+We prefer grasps with larger $\epsilon$,
+as the strength of the contact force required trends as $O(1/\epsilon)$.
+Similarly, we prefer grasps with larger $V$.
+By this metric, we can justify why,
+among the two below grasps with force closure,
+the grasp on the right is preferred.
+\begin{center}
+    \frame{\includegraphics[width=0.35\textwidth]{lecture-07/grasp-heurestics.png}}
+\end{center}
+
+\subsection{Heuristic Grasping}
+
+For general bodies, what are some easy ways
+we can design grasps that are guaranteed to have force closure?
+
+\textbf{Definition.}
+Given a grasp with two contact forces,
+we say the grasp is \textbf{antipodal} if
+the line connecting the contact points
+lies within both contact forces' friction cones.
+\begin{center}
+    \frame{\includegraphics[width=0.4\textwidth]{lecture-07/antipodal.png}}
+\end{center}
+\begin{theorem}{Antipodal}
+    All antipodal grasps in $\mathbb{R}^2$
+    and all antipodal grasps in $\mathbb{R}^3$
+    with \emph{soft finger contacts} have force closure.
+\end{theorem}
+
+This inspires the following heuristic
+for generating grasps with force closure.
+
+\begin{enumerate}
+    \item Using simple robotic vision,
+    determine a point cloud of the surface of the object.
+    \item Use PCA to determine normal vectors
+    perpendicular to the surface at each point in the point cloud.
+    \item Pick a point $P$ at random,
+    and follow its normal toward the inside of the body
+    until it meets a point $P'$ on the surface.
+    \item Check if a grasp at $P$ and $P'$ is valid
+    (i.e., is antipodal and does not have intersection between
+    the body and the gripper).
+\end{enumerate}
+
+This works pretty well in practice, too!
+
+\begin{remark}
+    In practice, you probably want to do more than
+    just randomly pick among antipodal grasps;
+    more heuristics are used.
+\end{remark}
+
+\subsection{Learned Grasping}
+
+You can also train a CNN that
+proposes grasps and learns to score
+whether they are good (e.g., antipodal).
+More generally, there are many families of
+models for scoring grasps.
+We won't get into the technical details.
+
+\end{document}
