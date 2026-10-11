@@ -278,6 +278,20 @@ has two versions, depending on the rank of $J$.
     then $J^+ := J^{\top}(JJ^{\top})^{-1}$, a right inverse ($JJ^+ = I$).
 \end{itemize}
 
+\begin{remark}
+    Suppose $J \colon \mathbb{R}^n \to \mathbb{R}^m$
+    is full row rank with $n > m$ and has null space $W$.
+    Then the pseudo-inverse $J^+$ must be a bijection from
+    $\mathbb{R}^m$ to $W^{\perp} \subseteq \mathbb{R}^n$,
+    as shown in the image below.
+    \begin{center}
+        \frame{\includegraphics[width=0.25\textwidth]{lecture-04/pseudo-inverse.jpg}}
+    \end{center}
+    CYU: Explain why the map $M \colon \mathbb{R}^n \to \mathbb{R}^n$
+    given by $M := I - J^+J$ projects vectors $x \in \mathbb{R}^n$
+    onto the null space of $J$.
+\end{remark}
+
 \textbf{Example.}
 Some examples of whether $J$ has full column rank
 or full row rank.
