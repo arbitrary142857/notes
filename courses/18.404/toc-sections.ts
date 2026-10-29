@@ -10,5 +10,5 @@ export interface TocPart {
 
 export const TOC_PARTS: TocPart[] = [
   { title: "Models of Computation", from: 1, to: 6 },
-  { title: "Decision Problems", from: 7, to: 10 },
+  { title: "Decision Problems", from: 7, to: 11 },
 ];

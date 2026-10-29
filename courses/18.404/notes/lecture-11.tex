@@ -1,0 +1,302 @@
+\lecture{11}
+\title{The Recursion Theorem}
+
+\begin{document}
+
+\subsection{Quines: Python}
+
+First, we construct a Turing Machine \textbf{quine}---a
+Turing Machine that takes nothing as input
+and prints out its own description.
+
+As a warmup, here's an example of a quine in Python.
+
+\begin{verbatim}[python]
+lines = [
+    'lines = [',
+    ']',
+    'quote = chr(39)',
+    'print(lines[0])',
+    'for line in lines:',
+    '    print("    " + quote + line + quote + ",")',
+    'for line in lines[1:]:',
+    '    print(line)',
+]
+quote = chr(39)
+print(lines[0])
+for line in lines:
+    print("    " + quote + line + quote + ",")
+for line in lines[1:]:
+    print(line)
+\end{verbatim}
+
+Note that \texttt{chr(39)} on line 11
+is just a Python-safe way of writing a single quote.
+Here's how this quine works.
+\begin{itemize}
+    \item \textbf{Part A: Lines 1–10.}
+    When Part A is run,
+    it writes a description $D$
+    to a list \texttt{lines}.
+    Note that $D$ consists of the following:
+    \begin{itemize}
+        \item (Line 2) First, a header \texttt{lines = [}.
+        \item (Line 3) Then, a footer \texttt{]}.
+        \item (Lines 4–9) Finally, a description of Part B.
+    \end{itemize}
+    \item \textbf{Part B: Lines 11–16.}
+    When Part B is run, it does the following:
+    \begin{enumerate}
+        \item First, it reads the description $D$
+        that has been written to \texttt{lines}.
+        \item (Lines 12–14) Then, it prints lines of Python code
+        that would print $D$; that is, it prints Part A.
+        \item (Lines 15–16) Finally, it prints the footer and body (i.e., Lines 3–9) of $D$.
+    \end{enumerate}
+\end{itemize}
+
+We'll follow a similar structure
+when constructing a quine in the language of Turing Machines.
+
+\subsection{Quines: Turing Machines}
+
+\textbf{Definition.}
+We require the following two definitions.
+\begin{itemize}
+    \item For any string $w$,
+    let $P_w$ denote the Turing machine that, on any input,
+    writes $w$ to the tape, then halts.
+    \item Let $q \colon \Sigma^* \to \Sigma^*$ be the (computable) function
+    defined by $q(w) := \langle P_w \rangle$.
+\end{itemize}
+
+\textbf{Example.}
+In the Python analogy, we have:
+\begin{itemize}
+    \item Part A is just $P_D$;
+    when Part A is run, it writes the string $D$
+    to \texttt{lines} (or, equivalently, the tape).
+    \item After reading in $D$, lines 12–14 of Part B
+    simply compute $q(D)$ and print it.
+    \begin{itemize}
+        \item Note that $q(D)$ is just a description of Part A.
+    \end{itemize}
+\end{itemize}
+
+We're now ready to describe our construction of
+a Turing Machine quine!
+(We denote this construction by $\mathrm{SELF}$.)
+
+\begin{quote}
+    \textbf{Construction ($\mathbf{SELF}$).}
+    The Turing machine $\mathrm{SELF}$ consists of two parts
+    $A$ and $B$.
+    
+    Define $A := P_{\langle B \rangle}$,
+    and define $B$ as follows:
+    \begin{enumerate}
+        \item First, it reads the description $\langle M \rangle$
+        of a portion of a TM that has been written to the tape.
+        \item Then, it prints a description of a Turing machine
+        that would write $\langle M \rangle$ to the tape;
+        that is, it prints $q(\langle M \rangle)$.
+        \item Finally, it prints $\langle M \rangle$.
+    \end{enumerate}
+    Now notice that since $A$ was run before $B$,
+    the input $\langle M \rangle$ that $B$ reads off of the tape
+    is exactly $\langle B \rangle$.
+
+    Therefore, what $B$ prints is $q(\langle B \rangle)
+    = \langle P_{\langle B \rangle} \rangle = \langle A \rangle$
+    followed by $\langle B \rangle$,
+    which is just $\langle \mathrm{SELF} \rangle$.  Done!
+\end{quote}
+
+Notice the direct parallels with the Python quine.
+The only major difference is that
+the Turing machine quine doesn't need to include
+the header \texttt{lines = [} and the footer \texttt{]}.
+
+\begin{remark}
+    Technically, what $B$ should really print out is
+    the description of the Turing machine given by
+    the combination of $q(\langle M \rangle)$ and $\langle M \rangle$.
+    This is necessary in case the description of
+    the combination of two Turing machines
+    is not the same as the combination of their descriptions.
+\end{remark}
+
+
+For an English-language example of a quine
+that follows a similar structure, consider the following sentence.
+\begin{quote}
+    Print two copies of the following,
+    the second one in quotes:
+    ``Print two copies of the following,
+    the second one in quotes:''
+\end{quote}
+Note that the following, in contrast, is \emph{not} a quine;
+its usage of ``this sentence'' is circular.
+\begin{quote}
+    Print out this sentence.
+\end{quote}
+
+\subsection{The Recursion Theorem:
+$A_{\mathrm{TM}}$, $\mathrm{MIN}_{\mathrm{TM}}$}
+
+We can apply this self-reference trick
+more generally in a lot more settings than just printing.
+
+\begin{theorem}{The Recursion Theorem}
+    Let $T$ be a Turing machine
+    that computes a function
+    $t \colon \Sigma^* \times \Sigma^* \to \Sigma^*$.
+    Then there is a Turing machine $R$
+    that computes a function $r \colon \Sigma^* \to \Sigma^*$
+    where, for every $w \in \Sigma^*$, we have
+    $r(w) = t(\langle R \rangle, w)$.
+    \begin{quote}
+        \emph{Informal Rephrasing.}
+        Any TM $R$ is allowed to
+        acquire its own description $\langle R \rangle$
+        and perform computations with it.
+    \end{quote}
+\end{theorem}
+
+\begin{proof}
+    Construct $R$ in three parts $A$, $B$, and $T$
+    (where $T$ is the TM given in the theorem statement).
+    Let's redefine some notation:
+    \begin{itemize}
+        \item Let $P_w$ denote the Turing machine that
+        writes $w$ on the tape
+        \emph{after what is already written}, then halts.
+        \item Define $q \colon \Sigma^* \to \Sigma^*$
+        by $q(w) := \langle P_w \rangle$, just as before.
+    \end{itemize}
+    We then define $A := P_{\langle BT \rangle}$,
+    and define $B$ as follows:
+    \begin{enumerate}
+        \item First, it reads the description $\langle M \rangle$
+        currently written to the tape.
+        \item Then, it computes $q(\langle M \rangle)$
+        and combines it with $\langle M \rangle$
+        to obtain a TM description $\langle X \rangle$.
+        \item Finally, it writes $\langle X, w \rangle$ to the tape.
+    \end{enumerate}
+    As before, when $B$ is run,
+    it will read $\langle M \rangle = \langle BT \rangle$, and so
+    it will write $\langle ABT, w \rangle
+    = \langle R, w \rangle$ to the tape.
+
+    Thus, when $T$ runs after $B$,
+    it will have both $w$ and the description $\langle R \rangle$
+    to work with as input, as desired. ~ $\blacksquare$
+\end{proof}
+
+The recursion theorem essentially packages together
+all of the self-referential work we did earlier
+into a reusable tool.
+
+\begin{problem}
+    Describe a Turing machine $\mathrm{SELF}$
+    that prints its own description.
+\end{problem}
+
+\begin{solution}
+    Here is the description of $\mathrm{SELF}$.
+    \begin{enumerate}
+        \item Obtain, via the recursion theorem,
+        the self-description $\langle \mathrm{SELF} \rangle$.
+        \item Print $\langle \mathrm{SELF} \rangle$.
+    \end{enumerate}
+    Explicitly, we are applying the recursion theorem when
+    $T$ is the machine that, on input $\langle M, w \rangle$,
+    just prints $\langle M \rangle$. ~ $\blacksquare$
+\end{solution}
+
+Now for some less immediate examples.
+
+\begin{theorem}{$A_{\mathrm{TM}}$ Undecidable}
+    The language $A_{\mathrm{TM}} := \{\langle M, w \rangle \mid
+    M \text{ is a TM that accepts } w\}$ is undecidable.
+\end{theorem}
+
+\begin{proof}
+    Suppose there is a decider $H$ for $A_{\mathrm{TM}}$.
+    Then consider the TM $B$ that, on input $w$,
+    does the following:
+    \begin{enumerate}
+        \item Obtain, via the recursion theorem,
+        the self-description $\langle B \rangle$.
+        \item Run $H$ on input $\langle B, w \rangle$.
+        If $H$ accepts, then reject.  If $H$ rejects, then accept.
+    \end{enumerate}
+    Now running $B$ on any input $w$
+    raises a contradiction. ~ $\blacksquare$
+\end{proof}
+
+\begin{remark}
+    Compare with the diagonalization argument used
+    back in \href{/18.404/lectures/8/#a-tm-undecidability}{Lecture 8}
+    to prove the same fact.
+\end{remark}
+
+\begin{theorem}{$\mathrm{MIN}_{\mathrm{TM}}$ Unrecognizable}
+    We first define the notion of \textbf{minimal} Turing machines.
+    \begin{quote}
+        \textbf{Definition.}
+        Say a TM $M$ is \textbf{minimal} if
+        there is no TM $M'$ equivalent to $M$
+        such that $\langle M' \rangle$
+        has shorter length than $\langle M \rangle$.
+    \end{quote}
+    Then the language $\mathrm{MIN}_{\mathrm{TM}} := \{ \langle M \rangle \mid
+    M \text{ is a minimal TM}\}$ is not Turing-recognizable.
+\end{theorem}
+
+\begin{proof}
+    Recall from \href{/18.404/lectures/6/#enumerators-turing-machines-with-printers}{Lecture 6}
+    that $\mathrm{MIN}_{\mathrm{TM}}$ is Turing-recognizable
+    if and only if some enumerator $E$ prints out $\mathrm{MIN}_{\mathrm{TM}}$.
+
+    Suppose (FTSOC) that such an enumerator $E$ exists.
+    Then consider the TM $C$ that, on input $w$,
+    does the following:
+    \begin{enumerate}
+        \item Obtain, via the recursion theorem,
+        the self-description $\langle C \rangle$.
+        \item Run the enumerator $E$ until
+        a machine $D$ appears with a longer description
+        than that of $C$.
+        \item Simulate $D$ on input $w$.
+    \end{enumerate}
+    Then $C$ is equivalent to $D$ and is shorter than it,
+    so $D$ is not minimal.
+    But $E$ printed out $D$, contradiction. ~ $\blacksquare$
+\end{proof}
+
+One more example, of a slightly different flavor.
+
+\begin{theorem}{Fixed Points}
+    For any computable function $t \colon \Sigma^* \to \Sigma^*$,
+    there exists a TM $F$ for which
+    $t(\langle F \rangle)$ describes a TM equivalent to $F$.
+\end{theorem}
+
+\begin{proof}
+    Define $F$ so that, on input $w$, it does the following:
+    \begin{enumerate}
+        \item Obtain, via the recursion theorem,
+        the self-description $\langle F \rangle$.
+        \item Compute $t(\langle F \rangle)$
+        to obtain the description of a TM $G$.
+        \item Simulate $G$ on $w$.
+    \end{enumerate}
+    Then clearly $\langle F \rangle$ and
+    $t(\langle F \rangle) = \langle G \rangle$
+    describe equivalent Turing machines,
+    because $F$ simulates $G$. ~ $\blacksquare$
+\end{proof}
+
+\end{document}

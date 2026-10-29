@@ -100,7 +100,7 @@ export const COURSES: Course[] = [
     subtitle: "Theory of Computation",
     semester: "🍂 Fall 2026",
     summary: `
-      Notes taken through Lecture 1 of ??.
+      Notes taken through Lecture 11 of ??.
     `,
   },
 ];
