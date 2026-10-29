@@ -38,7 +38,8 @@ like so.
     \texttt{\#} \texttt{c}_{\ell}$.
 \end{itemize}
 
-\subsection{Linearly Bounded Automata}
+\subsection{Linearly Bounded Automata:
+$A_{\mathrm{LBA}}$}
 
 \textbf{Definition.}
 A \textbf{linearly bounded automaton (LBA)} is a Turing machine
@@ -71,7 +72,9 @@ it only has as much memory as its input length.
     it must loop and therefore never halt. ~ $\blacksquare$
 \end{proof}
 
-\subsection{The Computation History Method}
+\subsection{The Computation History Method:
+$E_{\mathrm{LBA}}$, $\mathrm{ALL}_{\mathrm{PDA}}$,
+$E_{\mathrm{PDA}}$}
 
 The value of computation histories becomes especially apparent
 when we apply them to weaker models of computation than a Turing machine,
@@ -131,15 +134,15 @@ than a Turing machine (e.g., an LBA).
 The next example is similar---except instead of an LBA,
 our ``\emph{weaker} model of computation'' will be a PDA.
 
-\begin{theorem}{$ALL_{\mathrm{PDA}}$ Undecidable}
-    The language $ALL_{\mathrm{PDA}} := \{
+\begin{theorem}{$\mathrm{ALL}_{\mathrm{PDA}}$ Undecidable}
+    The language $\mathrm{ALL}_{\mathrm{PDA}} := \{
         \langle M \rangle \mid M \text{ is a PDA and } L(M) = \Sigma^*
     \}$ is undecidable.
 \end{theorem}
 
 \begin{proof}
-    Reduce $A_{\mathrm{TM}}$ to $ALL_{\mathrm{PDA}}$.
-    Given a TM $R$ that decides $ALL_{\mathrm{PDA}}$,
+    Reduce $A_{\mathrm{TM}}$ to $\mathrm{ALL}_{\mathrm{PDA}}$.
+    Given a TM $R$ that decides $\mathrm{ALL}_{\mathrm{PDA}}$,
     we construct a TM $S$ that decides $A_{\mathrm{TM}}$.
     \begin{quote}
         \textbf{Claim.}
@@ -207,15 +210,16 @@ our ``\emph{weaker} model of computation'' will be a PDA.
 
 \begin{remark}
     Recall from
-    \href{/18.404/lectures/7/#algorithms-on-grammars-and-turing-machines}{Lecture 7}
+    \href{/18.404/lectures/7/#algorithms-on-grammars-and-turing-machines-a-cfg-e-cfg-eq-cfg-a-tm}{Lecture 7}
     that the language $E_{\mathrm{PDA}} := \{
         \langle M \rangle \mid M \text{ is a PDA and }
         L(M) = \emptyset
-    \}$ actually \emph{is} decidable,
-    unlike $ALL_{\mathrm{PDA}}$.
-    Indeed, if one attempts to use the above argument
+    \}$ (equivalently, $E_{\mathrm{CFG}}$)
+    actually \emph{is} decidable,
+    unlike $\mathrm{ALL}_{\mathrm{PDA}}$.
+    If one attempts to use the above argument
     to prove the undecidability of $E_{\mathrm{PDA}}$,
-    one runs into the following:
+    this happens:
     \begin{quote}
         \textbf{Problem.}
         The PDA $P_{M, w}$ must accept its input

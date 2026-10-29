@@ -3,7 +3,8 @@
 
 \begin{document}
 
-\subsection{Reducibility}
+\subsection{Reducibility:
+$\mathrm{HALT}_{\mathrm{TM}}$, $E_{\mathrm{TM}}$}
 
 \begin{theorem}{Halting Problem}
     The language $\mathrm{HALT}_{\mathrm{TM}} :=
@@ -84,7 +85,8 @@ None of this is particularly nonobvious.
     \end{itemize}
 \end{proof}
 
-\subsection{Mapping Reducibility}
+\subsection{Mapping Reducibility:
+$EQ_{\mathrm{TM}}$, $\overline{EQ_{\mathrm{TM}}}$}
 
 \textbf{Definition.}
 We say that a language $A$ is \textbf{mapping reducible} to a language $B$
@@ -113,7 +115,7 @@ Again, none of this is particularly nonobvious.
 \end{theorem}
 
 \begin{proof}
-    Recall from \href{/18.404/lectures/8/#turing-unrecognizable}{Lecture 8}
+    Recall from \href{/18.404/lectures/8/#turing-unrecognizable-a-tm}{Lecture 8}
     that $\overline{A_{\mathrm{TM}}} := \{\langle M, w \rangle \mid
     M \text{ is a TM that does not accept } w\}$ is Turing-unrecognizable.
 
