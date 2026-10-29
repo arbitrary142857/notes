@@ -931,6 +931,517 @@ code.verbatim-inline {
 .km-box .note-widget-row output {
   flex: 0 0 1.5em;
 }
+/* Full column width: the diagram, tapes, and history share one row. */
+.note-widget-box.pcp-box {
+  position: relative;
+  max-width: none;
+  padding: 0.9em 1.25em;
+}
+.pcp-box [data-group="start"] {
+  --pcp-c: #7b4fa0;
+  --pcp-bg: rgba(123, 79, 160, 0.1);
+  --pcp-bg2: rgba(123, 79, 160, 0.24);
+}
+.pcp-box [data-group="copy"] {
+  --pcp-c: #2b6cb0;
+  --pcp-bg: rgba(43, 108, 176, 0.1);
+  --pcp-bg2: rgba(43, 108, 176, 0.24);
+}
+.pcp-box [data-group="move"] {
+  --pcp-c: #c0392b;
+  --pcp-bg: rgba(192, 57, 43, 0.1);
+  --pcp-bg2: rgba(192, 57, 43, 0.24);
+}
+.pcp-box [data-group="sep"] {
+  --pcp-c: #5d5447;
+  --pcp-bg: rgba(93, 84, 71, 0.1);
+  --pcp-bg2: rgba(93, 84, 71, 0.24);
+}
+.pcp-box [data-group="accept"] {
+  --pcp-c: #3a9e4a;
+  --pcp-bg: rgba(58, 158, 74, 0.1);
+  --pcp-bg2: rgba(58, 158, 74, 0.24);
+}
+.pcp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em 1em;
+}
+.pcp-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.9em;
+}
+.pcp-input input {
+  width: 4.5em;
+  padding: 0.3em 0.45em;
+  border: 1px solid #b8aea2;
+  background: #fff;
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1em;
+}
+.pcp-delta {
+  margin: 0.6em 0 0;
+  font-size: 0.8em;
+  line-height: 1.5;
+  text-align: center;
+  color: #5d5447;
+}
+/* Diagram and tapes side by side, centered as a pair; they wrap only on narrow screens. */
+.pcp-machine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8em 1.75em;
+  margin-top: 0.6em;
+}
+/* The script caps the width so every machine's diagram uses the same scale. */
+.pcp-diagram {
+  display: block;
+  flex: 0 1 auto;
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+.pcp-diagram .pcp-edge {
+  fill: none;
+  stroke: #8a8178;
+  stroke-width: 1.4;
+}
+.pcp-diagram marker path {
+  fill: #8a8178;
+}
+.pcp-diagram .pcp-mk-on path {
+  fill: #b26a00;
+}
+.pcp-diagram .pcp-edge.pcp-on {
+  stroke: #b26a00;
+  stroke-width: 2.2;
+}
+.pcp-diagram .pcp-rule {
+  fill: #5d5447;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+}
+.pcp-diagram .pcp-rule.pcp-on {
+  fill: #b26a00;
+  font-weight: 700;
+}
+.pcp-diagram .pcp-state circle {
+  fill: #fff;
+  stroke: #2f2a24;
+  stroke-width: 1.4;
+}
+.pcp-diagram .pcp-state text {
+  fill: #1a1a1a;
+  font-size: 13px;
+}
+.pcp-diagram .pcp-state.pcp-cur circle {
+  fill: #f6e3c6;
+  stroke: #b26a00;
+  stroke-width: 2.2;
+}
+.pcp-tapes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+.pcp-tape-name {
+  font-size: 0.8em;
+  color: #5d5447;
+}
+.pcp-tape {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 0.25em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+.pcp-tcell {
+  position: relative;
+  min-width: 1.7em;
+  padding: 0.25em 0;
+  border: 1px solid #b8aea2;
+  background: #fff;
+  text-align: center;
+}
+.pcp-tcell + .pcp-tcell {
+  border-left: none;
+}
+.pcp-tcell.pcp-ton {
+  background: #e6e0d6;
+}
+.pcp-tcell.pcp-tghost {
+  color: #b8aea2;
+}
+.pcp-tcell.pcp-tmore {
+  border-style: dashed;
+  color: #b8aea2;
+}
+/* Room for the head marker, only on tapes that have a head. */
+.pcp-tape.pcp-tape-head {
+  padding-top: 1.9em;
+}
+.pcp-tcell.pcp-tat {
+  z-index: 1;
+  box-shadow: 0 0 0 2px #b26a00;
+}
+.pcp-thead {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 3px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.9em;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #b26a00;
+  white-space: nowrap;
+}
+.pcp-thead::after {
+  content: "";
+  margin-top: 1px;
+  border-top: 0.45em solid #b26a00;
+  border-left: 0.35em solid transparent;
+  border-right: 0.35em solid transparent;
+}
+.pcp-palette {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em 1em;
+  margin-top: 0.7em;
+}
+.pcp-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em;
+}
+.pcp-group-name {
+  margin-right: 0.15em;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--pcp-c);
+}
+.pcp-dom {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 2.2em;
+  padding: 0;
+  border: 1.5px solid var(--pcp-c);
+  background: #fff;
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8em;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.pcp-dom > span {
+  padding: 0.15em 0.35em;
+  text-align: center;
+  white-space: nowrap;
+}
+.pcp-dom > span + span {
+  border-top: 1px solid var(--pcp-c);
+}
+.pcp-dom:hover {
+  background: var(--pcp-bg);
+}
+.pcp-dom:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pcp-grid-wrap {
+  margin-top: 0.8em;
+  padding: 0.4em 0;
+  overflow-x: auto;
+  border: 1px solid #e6e0d6;
+  background: #fff;
+}
+.pcp-grid {
+  display: grid;
+  width: max-content;
+  row-gap: 3px;
+  padding-right: 0.5em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+.pcp-empty {
+  padding: 1.2em 1em;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #8a8178;
+}
+.pcp-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 0.6em;
+  background: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.85em;
+  color: #5d5447;
+}
+.pcp-cell {
+  min-width: 1.4em;
+  padding: 0.2em 0.15em;
+  text-align: center;
+  background: var(--pcp-bg);
+}
+.pcp-cell.pcp-alt {
+  background: var(--pcp-bg2);
+}
+.pcp-cell.pcp-dstart {
+  border-left: 2px solid #fff;
+}
+.pcp-cell.pcp-last {
+  font-weight: 700;
+}
+.pcp-cell.pcp-hl {
+  background: var(--pcp-c);
+  color: #fff;
+}
+/* Bottom-row text the top row has not matched yet (or vice versa). */
+.pcp-cell.pcp-pending {
+  box-shadow: inset 0 -2px 0 #b26a00;
+}
+.pcp-label {
+  margin: 0 2px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.75em;
+  text-align: center;
+  color: #5d5447;
+}
+.pcp-label-top {
+  border-bottom: 1px solid #b8aea2;
+}
+.pcp-label-bot {
+  border-top: 1px solid #b8aea2;
+}
+.pcp-label-top.pcp-partial {
+  border-bottom-style: dashed;
+}
+.pcp-label-bot.pcp-partial {
+  border-top-style: dashed;
+}
+.pcp-label.pcp-cleanup {
+  color: #3a9e4a;
+}
+/* Only takes space when there is a dead end or a match to report. */
+.pcp-caption:empty {
+  display: none;
+}
+.pcp-caption {
+  margin: 0.6em 0 0;
+  font-size: 0.85em;
+  font-weight: 600;
+  text-align: center;
+}
+.pcp-caption.pcp-good {
+  color: #2e7d3a;
+}
+.pcp-caption.pcp-bad {
+  color: #c0392b;
+}
+.pcp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4em;
+  margin-left: 1em;
+}
+.pcp-actions .note-widget-btn {
+  font-size: 0.85em;
+  padding: 0.4em 0.6em;
+  white-space: nowrap;
+}
+/* Fits "Pause" too, so toggling doesn't resize the button. */
+.pcp-actions .pcp-run {
+  min-width: 4.4em;
+}
+.pcp-history {
+  flex: 0 1 12em;
+  min-width: 11em;
+  padding-left: 1em;
+  border-left: 1px solid #e6e0d6;
+  font-size: 0.85em;
+}
+.pcp-history-head {
+  font-size: 0.9em;
+  color: #5d5447;
+}
+/* Grows with the chain; scrolls once it gets long. */
+.pcp-history-list {
+  height: 10.5em;
+  overflow-y: auto;
+  margin: 0.3em 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pcp-history-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.05em 0;
+  white-space: nowrap;
+}
+.pcp-history-list li.pcp-future,
+.pcp-history-list li.pcp-erase {
+  color: #8a8178;
+}
+.pcp-hl-name {
+  min-width: 1.8em;
+}
+.pcp-hl-conf {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pcp-history-list li.pcp-acc {
+  font-weight: 700;
+  color: #2e7d3a;
+}
+.pcp-history-list li.pcp-rej {
+  font-weight: 700;
+  color: #c0392b;
+}
+/* Encoding demo: state diagram, then configuration ⟶ encoding. */
+/* Names each half of the widget; sits on a border line, so it takes no height. */
+.pcp-part-label {
+  position: absolute;
+  top: 0;
+  left: 0.75em;
+  transform: translateY(-50%);
+  padding: 0 0.5em;
+  background: #faf8f5;
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #5d5447;
+}
+/* Part 1's label is a heading inside the box, ruled off to the right like Part 2's. */
+.pcp-part-label.pcp-part-label-top {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0;
+  transform: none;
+}
+.pcp-part-label.pcp-part-label-top::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid #b8aea2;
+}
+.pcp-enc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em 1.5em;
+}
+.pcp-enc-diagram .pcp-state {
+  cursor: pointer;
+}
+.pcp-enc-diagram .pcp-state:hover circle {
+  fill: #f3efe9;
+}
+.pcp-enc-diagram .pcp-state.pcp-cur:hover circle {
+  fill: #f6e3c6;
+}
+.pcp-enc-diagram .pcp-state:focus-visible {
+  outline: none;
+}
+.pcp-enc-diagram .pcp-state:focus-visible circle {
+  stroke-width: 2.6;
+}
+.pcp-enc-main {
+  max-width: 26em;
+}
+.pcp-enc-text {
+  margin: 0 0 0.3em;
+  font-size: 0.8em;
+  line-height: 1.5;
+  text-align: center;
+  color: #5d5447;
+}
+.pcp-enc-text.pcp-enc-help {
+  margin: 0.7em 0 0;
+  color: #8a8178;
+}
+.pcp-enc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.5em 0.9em;
+}
+.pcp-enc-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+}
+/* The arrows sit beside the cells, below the room left for the head marker. */
+.pcp-enc-tape {
+  align-items: center;
+  gap: 0.3em;
+}
+.pcp-enc-cells {
+  display: flex;
+}
+.pcp-enc-tape .note-widget-btn {
+  font-size: 0.85em;
+  padding: 0.15em 0.4em;
+}
+.pcp-enc-cell {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.pcp-enc-cell:hover {
+  background: #f3efe9;
+}
+.pcp-enc-to {
+  align-self: center;
+  padding-top: 0.5em;
+  font-size: 1.3em;
+  color: #8a8178;
+}
+/* Styled like a domino half. */
+.pcp-enc-str {
+  padding: 0.3em 0.45em;
+  border: 1.5px solid #5d5447;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.pcp-enc-sym.pcp-enc-hl,
+.pcp-enc-cell.pcp-enc-hl {
+  background: #e6e0d6;
+}
+/* Separates the encoding demo from the domino demo below it. */
+.pcp-toolbar-run {
+  position: relative;
+  margin-top: 1em;
+  padding-top: 1.25em;
+  border-top: 1px solid #b8aea2;
+}
+.pcp-toolbar-run .pcp-part-label {
+  left: -0.5em;
+}
 .gimbal-buttons {
   display: flex;
   flex-wrap: wrap;

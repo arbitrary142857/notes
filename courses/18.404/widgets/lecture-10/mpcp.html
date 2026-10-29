@@ -1,0 +1,709 @@
+<div class="note-widget-box pcp-box">
+<div class="pcp-part-label pcp-part-label-top">Part 1 &middot; Encoding a configuration as a string</div>
+<div class="pcp-enc">
+    <svg class="pcp-diagram pcp-enc-diagram" role="group" aria-label="State diagram of an example machine; click a state to switch to it"></svg>
+    <div class="pcp-enc-main">
+        <p class="pcp-enc-text">The encoding is the tape left of the head, then the state, then the rest of the tape, with trailing blanks dropped.</p>
+        <div class="pcp-enc-row">
+            <div class="pcp-enc-col">
+                <div class="pcp-tape pcp-tape-head pcp-enc-tape">
+                    <button type="button" class="note-widget-btn pcp-enc-left" aria-label="Move head left">&larr;</button>
+                    <span class="pcp-enc-cells"></span>
+                    <button type="button" class="note-widget-btn pcp-enc-right" aria-label="Move head right">&rarr;</button>
+                </div>
+                <span class="pcp-tape-name">Configuration</span>
+            </div>
+            <span class="pcp-enc-to" aria-hidden="true">&#10230;</span>
+            <div class="pcp-enc-col">
+                <div class="pcp-enc-str"></div>
+                <span class="pcp-tape-name">Encoding</span>
+            </div>
+        </div>
+        <p class="pcp-enc-text pcp-enc-help">Click a state or a tape cell to change it; the arrows move the head.</p>
+    </div>
+</div>
+
+<div class="pcp-toolbar pcp-toolbar-run">
+    <div class="pcp-part-label">Part 2 &middot; Dominoes whose match spells out the computation history of <i>M</i> on <i>w</i></div>
+    <div class="arm-seg pcp-machines" role="group" aria-label="Turing machine">
+        <button type="button" class="arm-seg-btn" data-m="even" aria-pressed="true">Even # of 1s</button>
+        <button type="button" class="arm-seg-btn" data-m="ends" aria-pressed="false">Ends in 1</button>
+        <button type="button" class="arm-seg-btn" data-m="dec" aria-pressed="false">Binary &minus; 1</button>
+    </div>
+    <label class="pcp-input"><i>w</i> =
+        <input type="text" maxlength="4" value="101" spellcheck="false" autocomplete="off" aria-label="Input string w, up to four 0s and 1s">
+    </label>
+    <div class="pcp-actions">
+        <button type="button" class="note-widget-btn pcp-undo">Undo</button>
+        <button type="button" class="note-widget-btn pcp-run" aria-pressed="false">Solve</button>
+        <button type="button" class="note-widget-btn pcp-reset">Reset</button>
+    </div>
+</div>
+<p class="pcp-delta"></p>
+
+<div class="pcp-machine">
+    <svg class="pcp-diagram" role="img"></svg>
+    <div class="pcp-tapes"></div>
+    <div class="pcp-history">
+        <div class="pcp-history-head">Computation history</div>
+        <ol class="pcp-history-list"></ol>
+    </div>
+</div>
+
+<div class="pcp-palette"></div>
+
+<div class="pcp-grid-wrap"><div class="pcp-grid"></div></div>
+<p class="pcp-caption" aria-live="polite"></p>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const machineBtns = Array.from(root.querySelectorAll(".pcp-machines .arm-seg-btn"));
+    const input = root.querySelector(".pcp-input input");
+    const deltaEl = root.querySelector(".pcp-delta");
+    const palette = root.querySelector(".pcp-palette");
+    const gridWrap = root.querySelector(".pcp-grid-wrap");
+    const grid = root.querySelector(".pcp-grid");
+    const caption = root.querySelector(".pcp-caption");
+    const undoBtn = root.querySelector(".pcp-undo");
+    const runBtn = root.querySelector(".pcp-run");
+    const resetBtn = root.querySelector(".pcp-reset");
+    const historyList = root.querySelector(".pcp-history-list");
+    const diagram = root.querySelector(".pcp-machine .pcp-diagram");
+    const tapesEl = root.querySelector(".pcp-tapes");
+    const encDiagram = root.querySelector(".pcp-enc-diagram");
+    const encTape = root.querySelector(".pcp-enc-cells");
+    const encStr = root.querySelector(".pcp-enc-str");
+    const encLeft = root.querySelector(".pcp-enc-left");
+    const encRight = root.querySelector(".pcp-enc-right");
+
+    // Tokens: tape symbols "0", "1", "_" (blank), the separator "#", and states "q0", "q1", ..., "qa", "qr".
+    // A missing transition rejects. Layout: state centers, self-loop directions, the start arrow's direction.
+    const MACHINES = {
+        // Part 1's fixed example, kept simpler than (and apart from) the machines in Part 2.
+        example: {
+            delta: {
+                q0: { 0: ["q0", "0", "R"], 1: ["qa", "1", "R"], _: ["qr", "_", "R"] },
+            },
+            pos: { q0: [60, 70], qa: [190, 70], qr: [60, 165] },
+            loop: { q0: -Math.PI / 2 },
+            start: [-1, 0],
+        },
+        even: {
+            desc: "accepts if and only if <i>w</i> has an even number of 1s",
+            delta: {
+                q0: { 0: ["q0", "0", "R"], 1: ["q1", "1", "R"], _: ["qa", "_", "R"] },
+                q1: { 0: ["q1", "0", "R"], 1: ["q0", "1", "R"], _: ["qr", "_", "R"] },
+            },
+            pos: { q0: [60, 70], q1: [190, 70], qa: [60, 165], qr: [190, 165] },
+            loop: { q0: -Math.PI / 2, q1: -Math.PI / 2 },
+            start: [-1, 0],
+        },
+        // Run to the end of w, step back onto the last bit, and check it.
+        ends: {
+            desc: "accepts if and only if <i>w</i> ends in 1",
+            delta: {
+                q0: { 0: ["q0", "0", "R"], 1: ["q0", "1", "R"], _: ["q1", "_", "L"] },
+                q1: { 0: ["qr", "0", "R"], 1: ["qa", "1", "R"] },
+            },
+            pos: { q0: [60, 70], q1: [190, 70], qa: [125, 170], qr: [255, 170] },
+            loop: { q0: -Math.PI / 2 },
+            outside: ["q1>qr"], // label on the outer side of the fork, away from the other edge
+            start: [-1, 0],
+        },
+        // Subtract 1 from a positive binary number: run to the end, then borrow leftward,
+        // turning 0s into 1s until a 1 becomes 0. The leading 1 stops the borrow before the left end.
+        dec: {
+            desc: "computes <i>w</i> &minus; 1 for a positive binary number <i>w</i>, borrowing leftward",
+            numeral: true, // w is kept free of leading 0s
+            delta: {
+                q0: { 0: ["q0", "0", "R"], 1: ["q0", "1", "R"], _: ["q1", "_", "L"] },
+                q1: { 0: ["q1", "1", "L"], 1: ["qa", "0", "R"] },
+            },
+            pos: { q0: [60, 70], q1: [190, 70], qa: [190, 165], qr: [60, 165] },
+            loop: { q0: -Math.PI / 2, q1: -Math.PI / 2 },
+            start: [-1, 0],
+        },
+    };
+    const GAMMA = ["0", "1", "_"];
+    const GROUPS = [
+        ["start", "start"],
+        ["copy", "copy"],
+        ["move", "transition"],
+        ["sep", "separator"],
+        ["accept", "accept"],
+    ];
+    const HALT = new Set(["qa", "qr"]);
+    const STEP_MS = 150; // delay between dominoes while solving
+    const NODE_LIMIT = 50000; // cap on the completion search
+    const DIAGRAM_SCALE = 1; // CSS pixels per diagram unit, at most
+
+    let machineKey = "even";
+    let w = ["1", "0", "1"];
+    let D = []; // dominoes { top, bot, group }
+    let configs = [], accepted = false, maxLen = 0;
+    let placed = []; // indices into D
+    let state = null; // unmatched tail after `placed`; null before the first domino
+    let plan = null; // shortest completion from `state`, or null if none
+    let running = false, timer = 0;
+    // The encoding demo's configuration, for a fixed example machine; the tape is blank past ENC_N cells.
+    const ENC_KEY = "example";
+    const ENC_N = 6;
+    const CYCLE = { 0: "1", 1: "_", _: "0" };
+    let enc = { tape: ["0", "0", "1", "0", "_", "_"], head: 1, q: "q0" };
+
+    function tok(t) {
+        if (t === "_") return "&#8852;";
+        if (t[0] === "q") return "<i>q</i><sub>" + ({ qa: "acc", qr: "rej" }[t] || t.slice(1)) + "</sub>";
+        return t;
+    }
+    const toks = (arr) => arr.map(tok).join("&thinsp;");
+    const plain = (arr) => arr.map((t) => (t === "_" ? "blank" : t)).join(" ");
+    const rule = (q, a, key = machineKey) => (MACHINES[key].delta[q] || {})[a];
+
+    function buildDominoes() {
+        const M = MACHINES[machineKey];
+        D = [];
+        const add = (top, bot, group) => D.push({ top, bot, group });
+        add(["#"], ["#", "q0", ...w, "#"], "start");
+        for (const a of GAMMA) add([a], [a], "copy");
+        for (const q in M.delta) {
+            for (const a of GAMMA) {
+                if (!rule(q, a)) continue;
+                const [r, b, dir] = rule(q, a);
+                if (dir === "R") add([q, a], [b, r], "move");
+                // A left move also rewrites the cell left of the head, so it needs one domino per symbol c there.
+                else for (const c of GAMMA) add([c, q, a], [r, c, b], "move");
+            }
+        }
+        add(["#"], ["#"], "sep");
+        add(["#"], ["_", "#"], "sep");
+        for (const a of GAMMA) add(["qa", a], ["qa"], "accept");
+        for (const a of GAMMA) add([a, "qa"], ["qa"], "accept");
+        add(["qa", "#", "#"], ["#"], "accept");
+    }
+
+    // Run M on w, padding with a blank whenever the head moves onto fresh tape (so the head
+    // always sits on a cell), which is the configuration sequence the dominoes spell out.
+    function simulate() {
+        let tape = w.slice(), head = 0, q = "q0";
+        const conf = () => [...tape.slice(0, head), q, ...tape.slice(head)];
+        configs = [];
+        for (let n = 0; n < 60; n++) {
+            configs.push(conf());
+            if (HALT.has(q)) break;
+            const t = rule(q, tape[head]);
+            if (!t) { q = "qr"; configs.push(conf()); break; }
+            const [r, b, dir] = t;
+            tape[head] = b;
+            q = r;
+            if (dir === "R") {
+                head++;
+                if (head === tape.length) tape.push("_");
+            } else {
+                head = Math.max(0, head - 1);
+            }
+        }
+        accepted = q === "qa";
+        maxLen = Math.max(...configs.map((c) => c.length)) + 2;
+    }
+
+    // State = the unmatched tail of whichever row is longer: { side: "top" | "bot" | "none", s }.
+    // Appending d extends that tail; the other row's new text must agree with it.
+    function apply(st, d) {
+        const lead = st.side === "top" ? "top" : "bot";
+        const X = st.s.concat(d[lead]);
+        const other = lead === "top" ? d.bot : d.top;
+        const n = Math.min(X.length, other.length);
+        for (let i = 0; i < n; i++) if (X[i] !== other[i]) return null;
+        if (X.length >= other.length) return norm(lead, X.slice(other.length));
+        return norm(lead === "top" ? "bot" : "top", other.slice(X.length));
+    }
+    const norm = (side, s) => ({ side: s.length ? side : "none", s });
+    const START = { side: "none", s: [] };
+
+    // Breadth-first search over tails for the shortest way to reach `goal`.
+    function solve(st, goal) {
+        if (goal(st)) return [];
+        const key = (u) => u.side + ":" + u.s.join(" ");
+        const seen = new Map([[key(st), null]]);
+        let frontier = [st];
+        while (frontier.length && seen.size < NODE_LIMIT) {
+            const next = [];
+            for (const u of frontier) {
+                for (let j = 0; j < D.length; j++) {
+                    const v = apply(u, D[j]);
+                    if (!v || v.s.length > maxLen) continue;
+                    const k = key(v);
+                    if (seen.has(k)) continue;
+                    seen.set(k, [key(u), j]);
+                    if (goal(v)) {
+                        const path = [];
+                        for (let kk = k; seen.get(kk); kk = seen.get(kk)[0]) path.push(seen.get(kk)[1]);
+                        return path.reverse();
+                    }
+                    next.push(v);
+                }
+            }
+            frontier = next;
+        }
+        return null;
+    }
+
+    function recompute() {
+        state = null;
+        for (const j of placed) state = apply(state || START, D[j]);
+        // Accepting: aim for a match. Rejecting: there is none, so aim for the bottom row to finish
+        // writing the rejecting configuration, past which the top row can never read.
+        const goal = accepted
+            ? (v) => v.side === "none"
+            : (v) => v.side === "bot" && v.s.includes("qr") && v.s[v.s.length - 1] === "#";
+        plan = state ? solve(state, goal) : [0];
+    }
+
+    const complete = () => state && state.side === "none";
+    // In MPCP the first domino must be the starting one.
+    const fits = (j) => (state ? !!apply(state, D[j]) : j === 0);
+
+    function place(j) {
+        if (complete() || !fits(j)) return;
+        placed.push(j);
+        recompute();
+        render();
+    }
+
+    function render() {
+        renderPalette();
+        renderGrid();
+        renderHistory();
+        renderMachine();
+
+        caption.className = "pcp-caption";
+        if (complete()) {
+            caption.classList.add("pcp-good");
+            caption.innerHTML = "Match: the top and bottom rows are identical.";
+        } else if (state && !accepted) {
+            caption.classList.add("pcp-bad");
+            caption.innerHTML = "No match: <i>M</i> rejects <i>w</i>, and no domino lets the top row read past " + tok("qr") + ".";
+        } else if (state && !plan) {
+            caption.classList.add("pcp-bad");
+            caption.innerHTML = "Dead end: no sequence of dominoes completes this arrangement.";
+        } else {
+            caption.innerHTML = "";
+        }
+
+        undoBtn.disabled = !placed.length || running;
+        runBtn.disabled = !running && (!plan || !plan.length);
+    }
+
+    function renderPalette() {
+        palette.innerHTML = "";
+        for (const [group, name] of GROUPS) {
+            const g = document.createElement("div");
+            g.className = "pcp-group";
+            g.dataset.group = group;
+            g.innerHTML = '<span class="pcp-group-name">' + name + "</span>";
+            D.forEach((d, j) => {
+                if (d.group !== group) return;
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "pcp-dom";
+                b.disabled = complete() || running || !fits(j);
+                b.innerHTML = "<span>" + toks(d.top) + "</span><span>" + toks(d.bot) + "</span>";
+                b.setAttribute("aria-label", "Domino: top " + plain(d.top) + "; bottom " + plain(d.bot));
+                b.addEventListener("click", () => place(j));
+                g.appendChild(b);
+            });
+            palette.appendChild(g);
+        }
+    }
+
+    function renderGrid() {
+        grid.innerHTML = "";
+        if (!placed.length) {
+            grid.style.gridTemplateColumns = "";
+            grid.innerHTML = '<div class="pcp-empty">Placed dominoes appear here, starting with the start domino.</div>';
+            return;
+        }
+        const rows = { top: [], bot: [] }; // [token, domino position]
+        placed.forEach((j, k) => {
+            for (const side of ["top", "bot"]) for (const t of D[j][side]) rows[side].push([t, k]);
+        });
+        const N = Math.max(rows.top.length, rows.bot.length);
+        grid.style.gridTemplateColumns = "auto repeat(" + N + ", auto)";
+
+        const add = (cls, html, row, col, extra) => {
+            const el = document.createElement("div");
+            el.className = cls;
+            el.innerHTML = html;
+            el.style.gridRow = row;
+            el.style.gridColumn = col;
+            if (extra) extra(el);
+            grid.appendChild(el);
+        };
+        add("pcp-head", "", 1, 1);
+        add("pcp-head", "top", 2, 1);
+        add("pcp-head", "bottom", 3, 1);
+        add("pcp-head", "", 4, 1);
+
+        for (const [side, row] of [["top", 2], ["bot", 3]]) {
+            const other = side === "top" ? rows.bot : rows.top;
+            rows[side].forEach(([t, k], i) => {
+                let cls = "pcp-cell";
+                if (k % 2) cls += " pcp-alt";
+                if (i === 0 || rows[side][i - 1][1] !== k) cls += " pcp-dstart";
+                if (k === placed.length - 1) cls += " pcp-last";
+                if (i >= other.length) cls += " pcp-pending";
+                add(cls, tok(t), row, i + 2, (el) => {
+                    el.dataset.group = D[placed[k]].group;
+                    el.dataset.k = k;
+                });
+            });
+            labelConfigs(rows[side].map((x) => x[0]), side === "top" ? 1 : 4, add);
+        }
+        gridWrap.scrollLeft = gridWrap.scrollWidth;
+    }
+
+    // Accepting history C_1..C_k, then erasing steps E_1, E_2, ... that let the top row catch up.
+    const confName = (i) => "<i>" + (i < configs.length ? "C" : "E") + "</i><sub>" + (i < configs.length ? i + 1 : i + 1 - configs.length) + "</sub>";
+
+    // Label each stretch between #s with the configuration it spells.
+    function labelConfigs(arr, row, add) {
+        let m = 0;
+        arr.forEach((t, h) => {
+            if (t !== "#") return;
+            let end = h + 1;
+            while (end < arr.length && arr[end] !== "#") end++;
+            if (end === h + 1) return;
+            let cls = "pcp-label pcp-label-" + (row === 1 ? "top" : "bot");
+            if (m >= configs.length) cls += " pcp-cleanup";
+            if (end === arr.length) cls += " pcp-partial";
+            add(cls, confName(m++), row, (h + 3) + " / " + (end + 2));
+        });
+    }
+
+    // Split a row into its #-terminated configurations and the unterminated tail.
+    function splitRow(side) {
+        const done = [];
+        let cur = null;
+        placed.forEach((j) => D[j][side].forEach((t) => {
+            if (t === "#") { if (cur) done.push(cur); cur = []; } else if (cur) cur.push(t);
+        }));
+        return { done: done.filter((c) => c.length), tail: cur || [] };
+    }
+
+    // The bottom row, one configuration per line, growing with the chain.
+    function renderHistory() {
+        const bot = splitRow("bot");
+        const rows = bot.done.map((c) => [c, true]);
+        if (bot.tail.length) rows.push([bot.tail, false]);
+        historyList.innerHTML = "";
+        let seenAcc = false;
+        rows.forEach(([c, done], i) => {
+            const li = document.createElement("li");
+            const isAcc = done && !seenAcc && c.includes("qa");
+            const isRej = done && c.includes("qr");
+            seenAcc = seenAcc || isAcc;
+            if (!done) li.className = "pcp-future";
+            else if (isAcc) li.className = "pcp-acc";
+            else if (isRej) li.className = "pcp-rej";
+            else if (i >= configs.length) li.className = "pcp-erase";
+            li.innerHTML = '<span class="pcp-hl-name">' + confName(i) + '</span><span class="pcp-hl-conf">' + toks(c)
+                + (done ? "" : " &hellip;") + "</span>";
+            if (isAcc || isRej) li.title = isAcc ? "accepting configuration" : "rejecting configuration";
+            historyList.appendChild(li);
+        });
+        historyList.scrollTop = historyList.scrollHeight;
+    }
+
+    // Hovering a placed domino lights up both of its halves.
+    grid.addEventListener("mouseover", (e) => {
+        const cell = e.target.closest(".pcp-cell");
+        grid.querySelectorAll(".pcp-hl").forEach((el) => el.classList.remove("pcp-hl"));
+        if (cell) grid.querySelectorAll('.pcp-cell[data-k="' + cell.dataset.k + '"]').forEach((el) => el.classList.add("pcp-hl"));
+    });
+    grid.addEventListener("mouseleave", () => {
+        grid.querySelectorAll(".pcp-hl").forEach((el) => el.classList.remove("pcp-hl"));
+    });
+
+    // State diagram of M into svg, drawn from delta. Edges and rule labels carry data attributes
+    // for highlighting; mk keeps each diagram's arrowhead ids distinct.
+    function buildDiagram(svg, mk, key) {
+        const M = MACHINES[key];
+        const R = 19, LOOP = 34, LINE = 13;
+        const P = M.pos;
+        const f = (v) => v.toFixed(1);
+        const unit = (x, y) => { const l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+        const svgTok = (t) => {
+            if (t === "_") return "⊔";
+            if (t[0] !== "q") return t;
+            const sub = { qa: "acc", qr: "rej" }[t] || t.slice(1);
+            return '<tspan font-style="italic">q</tspan><tspan dy="4" font-size="0.72em">' + sub + "</tspan>";
+        };
+        // Fixed-size arrowheads, so a highlighted (thicker) edge keeps the same head.
+        const marker = (id, cls) => '<marker id="' + id + '" class="' + cls + '" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker>';
+        svg.dataset.mk = mk;
+        svg.dataset.key = key;
+        let out = "<defs>" + marker(mk, "pcp-mk") + marker(mk + "-on", "pcp-mk-on") + "</defs>";
+
+        // Rule labels stacked away from the edge, in direction n from point (x, y).
+        const labels = (rules, x, y, n) => {
+            const anchor = Math.abs(n[0]) > 0.5 ? (n[0] > 0 ? "start" : "end") : "middle";
+            const k = rules.length;
+            return rules.map((e, i) => {
+                let ly;
+                if (n[1] < -0.5) ly = y - (k - 1 - i) * LINE;
+                else if (n[1] > 0.5) ly = y + 9 + i * LINE;
+                else ly = y + 4 + (i - (k - 1) / 2) * LINE;
+                return '<text class="pcp-rule" data-rule="' + e.q + "," + e.a + '" x="' + f(x) + '" y="' + f(ly)
+                    + '" text-anchor="' + anchor + '">' + svgTok(e.a) + " → " + svgTok(e.b) + ", " + e.dir + "</text>";
+            }).join("");
+        };
+
+        const groups = {};
+        for (const q in M.delta) {
+            for (const a of GAMMA) {
+                if (!rule(q, a, key)) continue;
+                const [r, b, dir] = rule(q, a, key);
+                (groups[q + ">" + r] = groups[q + ">" + r] || []).push({ q, a, r, b, dir });
+            }
+        }
+        for (const key in groups) {
+            const rules = groups[key];
+            const { q, r } = rules[0];
+            const [ax, ay] = P[q];
+            let d, lx, ly, n;
+            if (q === r) {
+                const t = M.loop[q], pt = (ang, dist) => [ax + dist * Math.cos(ang), ay + dist * Math.sin(ang)];
+                // Symmetric loop whose end tangent points straight back at the state.
+                const [p1, c1, c2, p2] = [pt(t - 0.5, R), pt(t - 0.8, R + LOOP), pt(t + 0.8, R + LOOP), pt(t + 0.5, R + 1)];
+                d = "M" + p1.map(f) + " C" + c1.map(f) + " " + c2.map(f) + " " + p2.map(f);
+                n = [Math.cos(t), Math.sin(t)];
+                // The curve peaks about R + 0.4 LOOP out (its control points sit at R + LOOP); label just past that.
+                [lx, ly] = pt(t, R + 0.4 * LOOP + 10);
+            } else {
+                const [bx, by] = P[r];
+                const u = unit(bx - ax, by - ay);
+                n = [-u[1], u[0]];
+                const bend = groups[r + ">" + q] ? 22 : 0;
+                const c = [(ax + bx) / 2 + n[0] * bend, (ay + by) / 2 + n[1] * bend];
+                const s1 = unit(c[0] - ax, c[1] - ay), s2 = unit(c[0] - bx, c[1] - by);
+                d = "M" + f(ax + R * s1[0]) + "," + f(ay + R * s1[1]) + " Q" + c.map(f) + " "
+                    + f(bx + (R + 1) * s2[0]) + "," + f(by + (R + 1) * s2[1]);
+                lx = (ax + bx) / 2 + n[0] * (bend / 2 + 8);
+                ly = (ay + by) / 2 + n[1] * (bend / 2 + 8);
+            }
+            out += '<path class="pcp-edge" data-edge="' + key + '" d="' + d + '" marker-end="url(#' + mk + ')"/>';
+            if ((M.outside || []).includes(key)) {
+                lx -= 16 * n[0];
+                ly -= 16 * n[1];
+                n = [-n[0], -n[1]];
+            }
+            out += labels(rules, lx, ly, n);
+        }
+
+        const [sx, sy] = M.start, [qx, qy] = P.q0;
+        out += '<path class="pcp-edge" d="M' + f(qx + sx * (R + 26)) + "," + f(qy + sy * (R + 26)) + " L"
+            + f(qx + sx * (R + 1)) + "," + f(qy + sy * (R + 1)) + '" marker-end="url(#' + mk + ')"/>';
+        for (const st in P) {
+            const [x, y] = P[st];
+            out += '<g class="pcp-state" data-state="' + st + '"><circle cx="' + x + '" cy="' + y + '" r="' + R + '"/>';
+            if (st === "qa") out += '<circle cx="' + x + '" cy="' + y + '" r="' + (R - 4) + '"/>';
+            out += '<text x="' + x + '" y="' + (y + 3) + '" text-anchor="middle">' + svgTok(st) + "</text></g>";
+        }
+        svg.innerHTML = out;
+        // Crop to the drawing, and scale every machine's diagram by the same factor.
+        let bb = svg.getBBox();
+        if (!bb.width) { // not laid out (e.g. hidden): fall back to the state centers plus a margin
+            const xs = Object.values(P).map((p) => p[0]), ys = Object.values(P).map((p) => p[1]);
+            const x = Math.min(...xs) - 70, y = Math.min(...ys) - 70;
+            bb = { x, y, width: Math.max(...xs) + 70 - x, height: Math.max(...ys) + 70 - y };
+        }
+        const pad = 6;
+        svg.setAttribute("viewBox", [bb.x - pad, bb.y - pad, bb.width + 2 * pad, bb.height + 2 * pad].map(f).join(" "));
+        svg.style.maxWidth = f(DIAGRAM_SCALE * (bb.width + 2 * pad)) + "px";
+    }
+
+    // One tape; the first `mark` tokens of conf are already on their row and get shaded.
+    function tapeHtml(conf, mark, open) {
+        const cells = [];
+        let head = -1;
+        conf.forEach((t, i) => {
+            if (t[0] === "q") head = cells.length;
+            else cells.push({ t, on: i < mark });
+        });
+        // A state written last sits over a cell nobody has written yet.
+        if (head === cells.length) cells.push({ t: "_", ghost: true, on: conf.length - 1 < mark });
+        const st = conf.find((t) => t[0] === "q");
+        let html = cells.map((c, i) => '<span class="pcp-tcell' + (c.on ? " pcp-ton" : "") + (c.ghost ? " pcp-tghost" : "")
+            + (i === head ? " pcp-tat" : "") + '">'
+            + (i === head ? '<span class="pcp-thead"><span>' + tok(st) + "</span></span>" : "") + tok(c.t) + "</span>").join("");
+        if (open) html += '<span class="pcp-tcell pcp-tmore">?</span>';
+        return '<div class="pcp-tape' + (head >= 0 ? " pcp-tape-head" : "") + '">' + html + "</div>";
+    }
+
+    function renderMachine() {
+        const bot = splitRow("bot"), top = splitRow("top");
+        const rows = []; // [label, tape]
+        let now;
+        if (!placed.length) {
+            now = configs[0];
+            rows.push(["Start configuration " + confName(0), tapeHtml(now, 0, false)]);
+        } else if (complete()) {
+            now = bot.done[bot.done.length - 1];
+            rows.push(["Last configuration " + confName(bot.done.length - 1), tapeHtml(now, now.length, false)]);
+        } else {
+            // The top row copies configuration i while the bottom row writes configuration i + 1.
+            const i = Math.max(0, Math.min(top.done.length, bot.done.length - 1));
+            now = bot.done[i] || [];
+            const read = top.done.length === i ? top.tail.length : now.length;
+            const next = bot.done[i + 1] || bot.tail;
+            rows.push(["Top row is matching " + confName(i), tapeHtml(now, read, false)]);
+            rows.push(["Bottom row is writing " + confName(i + 1), tapeHtml(next, next.length, i + 1 >= bot.done.length)]);
+        }
+        tapesEl.innerHTML = rows.map(([a, b]) => '<div class="pcp-tape-row"><span class="pcp-tape-name">' + a + "</span>" + b + "</div>").join("");
+
+        highlight(diagram, now);
+        diagram.setAttribute("aria-label", "State diagram of M; current state " + plain([now.find((t) => t[0] === "q")]) + ".");
+    }
+
+    // Highlight the state of configuration `now` and the transition that takes it to the next one.
+    function highlight(svg, now) {
+        const q = now.find((t) => t[0] === "q");
+        const hi = now.indexOf(q);
+        const a = hi + 1 < now.length ? now[hi + 1] : "_";
+        const r = !HALT.has(q) && rule(q, a, svg.dataset.key);
+        svg.querySelectorAll(".pcp-state").forEach((g) => g.classList.toggle("pcp-cur", g.dataset.state === q));
+        svg.querySelectorAll(".pcp-edge[data-edge]").forEach((e) => {
+            const on = !!r && e.dataset.edge === q + ">" + r[0];
+            e.classList.toggle("pcp-on", on);
+            e.setAttribute("marker-end", "url(#" + svg.dataset.mk + (on ? "-on" : "") + ")");
+        });
+        svg.querySelectorAll(".pcp-rule").forEach((t) => t.classList.toggle("pcp-on", !!r && t.dataset.rule === q + "," + a));
+    }
+
+    // Encoding demo: the configuration's tape on the left, its encoding u q v as one string on the right.
+    function renderEnc() {
+        const { tape, head, q } = enc;
+        // Keep the tape up to the head or the last nonblank symbol, whichever is further right.
+        let end = head;
+        tape.forEach((t, i) => { if (t !== "_") end = Math.max(end, i); });
+        end++;
+
+        encTape.innerHTML = "";
+        tape.forEach((t, i) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "pcp-tcell pcp-enc-cell" + (i === head ? " pcp-tat" : "") + (i >= end ? " pcp-tghost" : "");
+            b.dataset.i = i;
+            b.innerHTML = (i === head ? '<span class="pcp-thead"><span>' + tok(q) + "</span></span>" : "") + tok(t);
+            b.setAttribute("aria-label", "Cell " + (i + 1) + ": " + plain([t]) + (i === head ? ", under the head" : "") + ". Click to change.");
+            b.addEventListener("click", () => { tape[i] = CYCLE[t]; renderEnc(); });
+            encTape.appendChild(b);
+        });
+
+        // Written token by token as on the dominoes.
+        const conf = [...tape.slice(0, head), q, ...tape.slice(head, end)];
+        encStr.innerHTML = conf.map((t, k) => (k === head ? tok(t)
+            : '<span class="pcp-enc-sym" data-i="' + (k < head ? k : k - 1) + '">' + tok(t) + "</span>")).join("&thinsp;");
+        encStr.setAttribute("aria-label", "Encoding: " + plain(conf));
+
+
+        encLeft.disabled = head === 0;
+        encRight.disabled = head === ENC_N - 1;
+        highlight(encDiagram, conf);
+    }
+
+    // Hovering a tape cell or an encoded symbol lights up its counterpart.
+    function encLink(e) {
+        const el = e.target.closest("[data-i]");
+        root.querySelectorAll(".pcp-enc-hl").forEach((x) => x.classList.remove("pcp-enc-hl"));
+        if (el) root.querySelectorAll('.pcp-enc [data-i="' + el.dataset.i + '"]').forEach((x) => x.classList.add("pcp-enc-hl"));
+    }
+    for (const el of [encTape, encStr]) {
+        el.addEventListener("mouseover", encLink);
+        el.addEventListener("mouseleave", encLink);
+    }
+
+    function buildEnc() {
+        buildDiagram(encDiagram, "pcp-enc-arrow", ENC_KEY);
+        encDiagram.querySelectorAll(".pcp-state").forEach((g) => {
+            g.setAttribute("tabindex", "0");
+            g.setAttribute("role", "button");
+            g.setAttribute("aria-label", "Switch to state " + plain([g.dataset.state]));
+        });
+        renderEnc();
+    }
+    const pickState = (e) => {
+        const g = e.target.closest(".pcp-state");
+        if (!g) return;
+        if (e.type === "keydown") {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+        }
+        enc.q = g.dataset.state;
+        renderEnc();
+    };
+    encDiagram.addEventListener("click", pickState);
+    encDiagram.addEventListener("keydown", pickState);
+    encLeft.addEventListener("click", () => { enc.head = Math.max(0, enc.head - 1); renderEnc(); });
+    encRight.addEventListener("click", () => { enc.head = Math.min(ENC_N - 1, enc.head + 1); renderEnc(); });
+
+    function setRunning(on) {
+        running = on;
+        runBtn.setAttribute("aria-pressed", String(on));
+        runBtn.textContent = on ? "Pause" : "Solve";
+        clearTimeout(timer);
+        if (on) tick();
+        else render();
+    }
+    function tick() {
+        if (!plan || !plan.length) { setRunning(false); return; }
+        place(plan[0]);
+        if (running) timer = setTimeout(tick, STEP_MS);
+    }
+
+    function reset() {
+        clearTimeout(timer);
+        running = false;
+        runBtn.setAttribute("aria-pressed", "false");
+        runBtn.textContent = "Solve";
+        buildDominoes();
+        simulate();
+        placed = [];
+        recompute();
+        deltaEl.innerHTML = "<i>M</i> " + MACHINES[machineKey].desc + ".";
+        buildDiagram(diagram, "pcp-arrow", machineKey);
+        render();
+    }
+
+    undoBtn.addEventListener("click", () => {
+        placed.pop();
+        recompute();
+        render();
+    });
+    runBtn.addEventListener("click", () => setRunning(!running));
+    resetBtn.addEventListener("click", reset);
+    // A numeral machine's input has no leading 0s (and is not empty).
+    const normalize = (v) => (MACHINES[machineKey].numeral ? v.replace(/^0+/, "") : v);
+    machineBtns.forEach((b) => b.addEventListener("click", () => {
+        machineKey = b.dataset.m;
+        w = (normalize(w.join("")) || "1").split("");
+        input.value = w.join("");
+        machineBtns.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        reset();
+    }));
+    input.addEventListener("input", () => {
+        const v = input.value.replace(/[^01]/g, "").slice(0, 4);
+        if (v !== input.value) input.value = v;
+        if (!normalize(v)) return; // keep the old w until the field holds a valid input again
+        w = normalize(v).split("");
+        reset();
+    });
+    input.addEventListener("blur", () => { input.value = w.join(""); });
+
+    buildEnc();
+    reset();
+})();
+</script>

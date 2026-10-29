@@ -1,0 +1,338 @@
+\lecture{10}
+\title{Computation History Method}
+
+\begin{document}
+
+\subsection{Computation History}
+
+\textbf{Definition.}
+The \textbf{configuration} $C$ of a TM $M$
+refers to the state of its tape, its head position, and its finite control.
+
+\textbf{Definition.}
+A \textbf{computation history} for a TM $M$ on an input string $w$ is
+a sequence of configurations $(C_1, C_2, \dots, C_{\ell})$ such that:
+\begin{itemize}
+    \item We have that $C_1$ is the start configuration of $M$ on $w$.
+    \item Each $C_{i + 1}$ legally follows from $C_i$
+    according to the rules of $M$.
+\end{itemize}
+
+\textbf{Definition.}
+We say $(C_1, C_2, \dots, C_{\ell})$ is \textbf{accepting}
+if $C_{\ell}$ is an accepting configuration, and \textbf{rejecting}
+if $C_{\ell}$ is rejecting.
+
+\textbf{Definition.}
+We often encode configurations and computation histories
+like so.
+\begin{itemize}
+    \item Let $\texttt{c}_i$ denote
+    the encoding of a configuration $C_i$.
+    \item Let the encoding of a computation history
+    $H = (C_1, C_2, \dots, C_{\ell})$ be
+    $\langle H \rangle =
+    \texttt{c}_1 \texttt{\#}
+    \texttt{c}_2 \texttt{\#}
+    \dots
+    \texttt{\#} \texttt{c}_{\ell}$.
+\end{itemize}
+
+\subsection{Linearly Bounded Automata}
+
+\textbf{Definition.}
+A \textbf{linearly bounded automaton (LBA)} is a Turing machine
+in which the tape head is not permitted to move
+off the portion of the tape containing the input---as in,
+it only has as much memory as its input length.
+
+\begin{theorem}{$A_{\mathrm{LBA}}$ Decidable}
+    The language $A_{\mathrm{LBA}} := \{
+        \langle B, w \rangle \mid
+        B \text{ is an LBA that accepts } w
+    \}$ is decidable.
+\end{theorem}
+
+\begin{proof}
+    If $B$ is an LBA with $q$ states,
+    a tape of length $n$,
+    and $g$ letters in its tape alphabet,
+    then $B$ only has $qng^n$ distinct configurations.
+    So it suffices to simulate $B$ on $w$
+    only for $qng^n$ steps.
+    \begin{itemize}
+        \item Return \textsc{Accept}
+        if the simulation ever returns \textsc{Accept}.
+        \item Return \textsc{Reject}
+        if the simulation ever returns \textsc{Reject}
+        or has not halted within $qng^n$ steps.
+    \end{itemize}
+    Indeed, if the simulation has not halted within $qng^n$ steps,
+    it must loop and therefore never halt. ~ $\blacksquare$
+\end{proof}
+
+\subsection{The Computation History Method}
+
+The value of computation histories becomes especially apparent
+when we apply them to weaker models of computation than a Turing machine,
+such as the LBA.
+
+\begin{theorem}{$E_{\mathrm{LBA}}$ Undecidable}
+    The language $E_{\mathrm{LBA}} := \{
+        \langle B \rangle \mid
+        B \text{ is an LBA such that } L(B) = \emptyset
+    \}$ is undecidable.
+\end{theorem}
+
+\begin{proof}
+    We reduce $A_{\mathrm{TM}}$
+    (from \href{/18.404/lectures/8/#a-tm-undecidability}{Lecture 8})
+    to $E_{\mathrm{LBA}}$.
+    Given a TM $R$ that decides $E_{\mathrm{LBA}}$,
+    we construct a TM $S$ that decides $A_{\mathrm{TM}}$.
+    \begin{quote}
+        \textbf{Claim.}
+        We can construct an LBA $B_{M, w}$ satisfying the following.
+        \begin{enumerate}
+            \item The LBA $B_{M, w}$ takes a computation history
+            $\langle H \rangle = \langle C_1, C_2, \dots, C_{\ell} \rangle$
+            as input.
+            \item The LBA $B_{M, w}$ accepts its input if and only if
+            it is an accepting computation history for $M$ on $w$.
+        \end{enumerate}
+
+        \emph{Proof:}
+        It suffices to verify each of the following.
+        \begin{enumerate}
+            \item The first configuration $C_1$
+            agrees with taking $M$ on input $w$.
+            \item Each configuration $C_{i + 1}$
+            legally follows from the previous configuration $C_i$.
+            \item The final configuration $C_{\ell}$
+            is accepting.
+        \end{enumerate}
+        Each of these can easily be done by an LBA.
+        ~ $\square$
+    \end{quote}
+    And so the TM $S$ that decides $A_{\mathrm{TM}}$
+    can just run $R$ on the LBA $B_{M, w}$
+    and output the opposite of what $R$ outputs.
+    ~ $\blacksquare$
+\end{proof}
+
+Notice how an LBA is able to verify a computation history
+even though it is unable to simulate a Turing machine.
+
+Consequently, the utility of the computation history method
+comes from its ability to make reductions from $A_{\mathrm{TM}}$
+into languages concerning \emph{weaker} models of computation
+than a Turing machine (e.g., an LBA).
+
+The next example is similar---except instead of an LBA,
+our ``\emph{weaker} model of computation'' will be a PDA.
+
+\begin{theorem}{$ALL_{\mathrm{PDA}}$ Undecidable}
+    The language $ALL_{\mathrm{PDA}} := \{
+        \langle M \rangle \mid M \text{ is a PDA and } L(M) = \Sigma^*
+    \}$ is undecidable.
+\end{theorem}
+
+\begin{proof}
+    Reduce $A_{\mathrm{TM}}$ to $ALL_{\mathrm{PDA}}$.
+    Given a TM $R$ that decides $ALL_{\mathrm{PDA}}$,
+    we construct a TM $S$ that decides $A_{\mathrm{TM}}$.
+    \begin{quote}
+        \textbf{Claim.}
+        We can construct a PDA $P_{M, w}$ satisfying the following.
+        \begin{enumerate}
+            \item The PDA $P_{M, w}$ takes a computation history
+            $\langle H \rangle = \langle C_1, C_2, \dots, C_{\ell} \rangle$
+            as input.
+            \item The PDA $P_{M, w}$ accepts its input if and only if
+            it is \textbf{not} an accepting computation history for $M$ on $w$.
+        \end{enumerate}
+
+        \emph{Proof:}
+        A single PDA is able to perform
+        any \emph{one} of the following checks.
+        \begin{enumerate}
+            \item The first configuration $C_1$
+            does \emph{not} agree with taking $M$ on input $w$.
+            \begin{itemize}
+                \item To do this, $P_{M, w}$ can just have
+                the correct first configuration hardcoded
+                into one of its states.
+            \end{itemize}
+            \item For some fixed $i$, the configuration $C_{i + 1}$
+            does \emph{not} legally follow from
+            the previous configuration $C_i$.
+            \begin{itemize}
+                \item To do this,
+                we actually need to slightly alter
+                our encoding of a computation history
+                to look like the following:
+                \[
+                \langle H \rangle =
+                \texttt{c}_1\texttt{\#}
+                \texttt{c}_2^R\texttt{\#}
+                \texttt{c}_3\texttt{\#}
+                \texttt{c}_4^R\texttt{\#}\dots
+                ~~~ \text{ where } ~~~
+                \langle C_i \rangle = \texttt{c}_i
+                \text{ for all } i = 1, 2, \dots, \ell.
+                \]
+                This way, we can push $\texttt{c}_i$ onto the stack,
+                then pop the stack to compare
+                $\texttt{c}_i$ with $\texttt{c}_{i + 1}$
+                character-by-character.
+            \end{itemize}
+            \item The final configuration $C_{\ell}$
+            is \emph{not} accepting.
+            \begin{itemize}
+                \item To do this, $P_{M, w}$
+                just needs to check whether $q_{\mathrm{acc}}$
+                is in $C_{\ell}$.
+            \end{itemize}
+        \end{enumerate}
+        The finish is to use the nondeterminism of PDAs
+        to compute the logical OR of all of these checks---accept
+        if \emph{any} of these checks are satisfied.
+        ~ $\square$
+    \end{quote}
+    Then the TM $S$ that decides $A_{\mathrm{TM}}$
+    can just run $R$ on the PDA $P_{M, w}$
+    and output the opposite of what $R$ outputs.
+    ~ $\blacksquare$
+\end{proof}
+
+\begin{remark}
+    Recall from
+    \href{/18.404/lectures/7/#algorithms-on-grammars-and-turing-machines}{Lecture 7}
+    that the language $E_{\mathrm{PDA}} := \{
+        \langle M \rangle \mid M \text{ is a PDA and }
+        L(M) = \emptyset
+    \}$ actually \emph{is} decidable,
+    unlike $ALL_{\mathrm{PDA}}$.
+    Indeed, if one attempts to use the above argument
+    to prove the undecidability of $E_{\mathrm{PDA}}$,
+    one runs into the following:
+    \begin{quote}
+        \textbf{Problem.}
+        The PDA $P_{M, w}$ must accept its input
+        if and only if it is an accepting computation history\dots
+
+        \dots but PDAs aren't capable of verifying
+        that a computation history is accepting!
+    \end{quote}
+    In particular, the nondeterminism of a PDA
+    lets us compute the logical OR of multiple checks,
+    but not the logical AND.
+\end{remark}
+
+\subsection{The Post Correspondence Problem}
+
+We conclude by using computation histories
+to prove a somewhat surprising result.
+
+\begin{theorem}{PCP Undecidable}
+    Consider the \textbf{Post Correspondence Problem (PCP)},
+    defined as follows.
+    \begin{quote}
+        \textbf{Post Correspondence Problem (PCP).}
+        Take a collection of \emph{dominos} as input $\langle P \rangle$.
+        \[
+        P = \left\{
+            \left[
+                \frac{t_1}{b_1}
+            \right],
+            \left[
+                \frac{t_2}{b_2}
+            \right],
+            \dots,
+            \left[
+                \frac{t_k}{b_k}
+            \right]
+        \right\}
+        ~~~~~~~~~~~ \textit{Example: }
+        \left\{
+            \left[
+                \frac{\str{b}}{\str{ca}}
+            \right],
+            \left[
+                \frac{\str{a}}{\str{ab}}
+            \right],
+            \left[
+                \frac{\str{ca}}{\str{a}}
+            \right],
+            \left[
+                \frac{\str{abc}}{\str{c}}
+            \right]
+        \right\}
+        \]
+        Accept if and only if the dominos may be arranged
+        (possibly with repeats) such that
+        the top and bottom rows match.
+        \[
+            \textit{Example: }
+            \left[
+                \frac{\str{a}}{\str{ab}}
+            \right]
+            \left[
+                \frac{\str{b}}{\str{ca}}
+            \right]
+            \left[
+                \frac{\str{ca}}{\str{a}}
+            \right]
+            \left[
+                \frac{\str{a}}{\str{ab}}
+            \right]
+            \left[
+                \frac{\str{abc}}{\str{c}}
+            \right]
+        \]
+    \end{quote}
+    It turns out, perhaps surprisingly, that PCP is \emph{undecidable}.
+\end{theorem}
+
+
+
+\begin{proof}
+    Reduce $A_{\mathrm{TM}}$ to the PCP as before.
+    First, a simplifying claim that we will assume without proof.
+
+    \begin{quote}
+        \textbf{Claim.}
+        The \textbf{MPCP (Modified Post Correspondence Problem)}
+        is a variant of the PCP in which the first domino is fixed.
+
+        Then the PCP is decidable if and only if the MPCP is decidable.
+    \end{quote}
+
+    The idea is that, on input $\langle M, w \rangle$,
+    we construct an MPCP instance such that
+    the following holds.
+    
+    \begin{quote}
+        \textbf{Goal.}
+        Suppose there exists an arrangement of dominos
+        in which the top and bottom rows both read $S$.
+        Then $S$ must be the encoding of an accepting computation history
+        for $M$ on $w$.
+    \end{quote}
+
+    Such a goal is pretty hard to achieve!
+    In particular, the construction is extremely detail-heavy,
+    so we won't fully justify it here.
+    The interactive (warning: AI-generated) widget below
+    should give a rough sense of how it works.
+
+    \includewidget{lecture-10/mpcp}
+
+    And so $A_{\mathrm{TM}}$ can be reduced to the MPCP
+    by running an MPCP decider on
+    the MPCP instance corresponding to $\langle M, w \rangle$.
+    ~ $\blacksquare$
+\end{proof}
+
+
+\end{document}
