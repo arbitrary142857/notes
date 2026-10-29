@@ -310,6 +310,26 @@ pre.verbatim code {
   background: none;
   padding: 0;
 }
+code.verbatim-numbered {
+  display: block;
+  counter-reset: verbatim-line;
+}
+.verbatim-line {
+  display: block;
+  position: relative;
+  min-height: 1.45em;
+  padding-left: calc(var(--ln-digits) * 1ch + 1.2em);
+  counter-increment: verbatim-line;
+}
+.verbatim-line::before {
+  content: counter(verbatim-line);
+  position: absolute;
+  left: 0;
+  width: calc(var(--ln-digits) * 1ch);
+  text-align: right;
+  color: #959da5;
+  user-select: none;
+}
 code.verbatim-inline {
   padding: 0.1em 0.35em;
   background: #f6f8fa;

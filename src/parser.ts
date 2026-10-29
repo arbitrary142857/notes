@@ -552,10 +552,32 @@ function renderVerbatim(content: string, language = ""): string {
   if (lang) {
     const highlighted = highlightCode(content, lang);
     if (highlighted) {
-      return `<pre class="verbatim"><code class="hljs language-${escapeAttr(lang)}">${highlighted}</code></pre>`;
+      return `<pre class="verbatim">${numberLines(highlighted, `hljs language-${escapeAttr(lang)}`)}</pre>`;
     }
   }
-  return `<pre class="verbatim"><code>${escapeText(content)}</code></pre>`;
+  return `<pre class="verbatim">${numberLines(escapeText(content))}</pre>`;
+}
+
+/** Wrap each line of `html` in a numbered span, closing/reopening spans that cross line breaks. */
+function numberLines(html: string, codeClass = ""): string {
+  const lines: string[] = [];
+  const open: string[] = [];
+  let current = "";
+  for (const token of html.split(/(<span[^>]*>|<\/span>|\n)/)) {
+    if (token === "\n") {
+      lines.push(current + "</span>".repeat(open.length));
+      current = open.join("");
+    } else {
+      if (token.startsWith("<span")) open.push(token);
+      else if (token === "</span>") open.pop();
+      current += token;
+    }
+  }
+  lines.push(current);
+  const gutter = String(lines.length).length;
+  const body = lines.map((line) => `<span class="verbatim-line">${line}</span>`).join("");
+  const cls = ["verbatim-numbered", codeClass].filter(Boolean).join(" ");
+  return `<code class="${cls}" style="--ln-digits: ${gutter}">${body}</code>`;
 }
 
 function renderInlineCode(content: string, language = ""): string {
