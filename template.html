@@ -1473,6 +1473,359 @@ code.verbatim-inline {
   border-color: #2f2a24;
   color: #fff;
 }
+/* 3SAT-to-CLIQUE reduction: each clause's color ties its formula span to its triple in G. */
+.clq-box [data-c="0"] {
+  --clq-c: #7b4fa0;
+  --clq-bg: rgba(123, 79, 160, 0.1);
+}
+.clq-box [data-c="1"] {
+  --clq-c: #2b6cb0;
+  --clq-bg: rgba(43, 108, 176, 0.1);
+}
+.clq-box [data-c="2"] {
+  --clq-c: #3a9e4a;
+  --clq-bg: rgba(58, 158, 74, 0.1);
+}
+.clq-box [data-c="3"] {
+  --clq-c: #b26a00;
+  --clq-bg: rgba(178, 106, 0, 0.1);
+}
+.note-widget-box.clq-box {
+  padding: 0.85em 1.25em 1.25em;
+}
+.clq-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em 1em;
+}
+.clq-formula {
+  margin-top: 0.6em;
+  font-family: var(--body-font);
+  font-size: 1.15em;
+  line-height: 1.5;
+  text-align: center;
+}
+.clq-clause {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  white-space: nowrap;
+}
+.clq-cl-body {
+  padding-bottom: 0.05em;
+  border-bottom: 2px solid var(--clq-c);
+}
+/* Names the clause's triple in G and marks whether the clause is satisfied. */
+.clq-cl-tag {
+  min-height: 1.3em;
+  font-size: 0.7em;
+  line-height: 1.6;
+  color: var(--clq-c);
+}
+.clq-mark {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  color: #c0392b;
+}
+.clq-mark.clq-ok {
+  color: #3a9e4a;
+}
+/* Legend for the formula's highlighting. */
+.clq-key {
+  margin-top: 0.3em;
+  font-size: 0.8em;
+  text-align: center;
+  color: #5d5447;
+}
+.clq-key i {
+  font-family: var(--body-font);
+}
+.clq-key-sel {
+  padding: 0 0.15em;
+  border-radius: calc(3px * var(--ui-scale));
+  background: #5d5447;
+  color: #fff;
+}
+.clq-key-false i {
+  color: #a59c90;
+}
+.clq-lit {
+  padding: 0 0.12em;
+  border-radius: calc(3px * var(--ui-scale));
+  cursor: pointer;
+}
+.clq-lit.clq-false {
+  color: #a59c90;
+  cursor: default;
+}
+.clq-lit.clq-sel {
+  background: var(--clq-c);
+  color: #fff;
+}
+.clq-lit.clq-hov {
+  outline: 1.5px solid var(--clq-c);
+}
+.clq-assign {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em 1.2em;
+  margin-top: 0.8em;
+}
+.clq-var {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--body-font);
+}
+.clq-tf {
+  display: inline-flex;
+  border: 1.5px solid #b26a00;
+}
+.clq-tf button {
+  min-width: 2.2em;
+  padding: 0.3em 0.5em;
+  border: none;
+  background: #fff;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+}
+.clq-tf button + button {
+  border-left: 1px solid #d5cec4;
+}
+.clq-tf button:hover {
+  background: #faf8f5;
+}
+.clq-tf button[aria-pressed="true"] {
+  background: #2f2a24;
+  color: #fff;
+}
+/* In clique mode the switches only display the assignment read off the clique. */
+.clq-tf button:disabled {
+  cursor: default;
+}
+.clq-tf:has(button:disabled) {
+  border: 1.5px dashed #b8aea2;
+}
+.clq-tf button:disabled:not([aria-pressed="true"]) {
+  background: transparent;
+  color: #a59c90;
+}
+.clq-var-bad .clq-tf {
+  border-color: #c0392b;
+}
+.clq-var-bad .clq-tf button[aria-pressed="true"] {
+  background: #c0392b;
+}
+.clq-graph {
+  display: block;
+  width: 100%;
+  max-width: 24em;
+  margin: 0.6em auto 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.clq-hull {
+  fill: var(--clq-bg);
+}
+.clq-label {
+  fill: var(--clq-c);
+  font-family: var(--body-font);
+  font-size: 14px;
+  text-anchor: middle;
+}
+.clq-edge {
+  stroke: #c9c1b6;
+  stroke-width: 1;
+}
+.clq-hovering .clq-edge {
+  opacity: 0.2;
+}
+.clq-graph .clq-edge.clq-hot {
+  opacity: 1;
+  stroke: #5d5447;
+  stroke-width: 1.6;
+}
+.clq-graph .clq-edge.clq-on {
+  opacity: 1;
+  stroke: #2f2a24;
+  stroke-width: 2.6;
+}
+.clq-miss {
+  stroke: #c0392b;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+.clq-node {
+  cursor: pointer;
+}
+.clq-node:focus {
+  outline: none;
+}
+.clq-node circle {
+  fill: #fff;
+  stroke: var(--clq-c);
+  stroke-width: 1.6;
+}
+.clq-node text {
+  fill: #1a1a1a;
+  font-family: var(--body-font);
+  font-size: 13px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.clq-node.clq-false {
+  opacity: 0.35;
+  cursor: default;
+}
+.clq-node.clq-sel circle {
+  fill: var(--clq-c);
+}
+.clq-node.clq-sel text {
+  fill: #fff;
+}
+.clq-node.clq-hov circle,
+.clq-node:focus-visible circle {
+  stroke-width: 3;
+}
+.clq-caption {
+  min-height: 1.5em;
+  margin: 0.5em 0 0;
+  font-size: 0.9em;
+  line-height: 1.5;
+  text-align: center;
+}
+.clq-goal {
+  margin: 0.8em 0 0;
+  text-align: center;
+}
+/* Marks the part of the widget the current mode takes input from. */
+.clq-act {
+  font-weight: 600;
+  color: #b26a00;
+}
+.clq-box:not(.clq-picking) .clq-node,
+.clq-box:not(.clq-picking) .clq-lit {
+  cursor: default;
+}
+/* 3SAT-to-HAMPATH reduction. Its box is also a .clq-box, sharing the clause colors,
+   formula, switches, and captions above. */
+.ham-graph {
+  display: block;
+  width: 100%;
+  margin: 0.6em auto 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ham-edge path,
+.ham-step path {
+  fill: none;
+}
+.ham-edge path {
+  stroke: #c9c1b6;
+  stroke-width: 1.2;
+}
+.ham-loop {
+  opacity: 0.4;
+}
+.ham-loop path {
+  stroke: var(--clq-c);
+  stroke-width: 1;
+}
+.ham-loop .ham-head {
+  fill: var(--clq-c);
+}
+.ham-hovering .ham-loop {
+  opacity: 0.12;
+}
+.ham-graph .ham-loop.ham-hot {
+  opacity: 1;
+}
+.ham-loop.ham-hot path {
+  stroke-width: 2;
+}
+.ham-step path {
+  stroke: #2f2a24;
+  stroke-width: 2.2;
+}
+.ham-step .ham-head {
+  fill: #2f2a24;
+}
+.ham-hit {
+  fill: transparent;
+}
+.ham-ring {
+  fill: none;
+}
+.ham-dot {
+  fill: #fff;
+  stroke: #8a8176;
+  stroke-width: 1.3;
+}
+.ham-node[data-c] .ham-dot {
+  stroke: var(--clq-c);
+  stroke-width: 1.8;
+}
+.ham-node.ham-on .ham-dot {
+  fill: #2f2a24;
+}
+.ham-clause.ham-on .ham-dot {
+  fill: var(--clq-c);
+}
+.ham-clause text {
+  fill: var(--clq-c);
+  font-family: var(--body-font);
+  font-size: 12px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.ham-clause.ham-on text {
+  fill: #fff;
+}
+.ham-node.ham-hov .ham-dot,
+.ham-live:hover .ham-dot,
+.ham-live:focus-visible .ham-dot {
+  stroke-width: 3;
+}
+/* Orange rings: the path's possible next nodes. Dashed red: nodes no extension can visit. */
+.ham-node.ham-next .ham-ring {
+  stroke: #b26a00;
+  stroke-width: 1.5;
+}
+.ham-node.ham-bad .ham-ring {
+  stroke: #c0392b;
+  stroke-width: 1.8;
+  stroke-dasharray: 3 2;
+}
+.ham-live {
+  cursor: pointer;
+}
+.ham-live:focus {
+  outline: none;
+}
+.ham-label {
+  fill: #5d5447;
+  font-family: var(--body-font);
+  font-size: 14px;
+  text-anchor: end;
+}
+.ham-hub-label {
+  text-anchor: middle;
+}
+.ham-key-ring {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border: 1.5px solid #b26a00;
+  border-radius: 50%;
+  vertical-align: -0.05em;
+}
+.ham-key-ring.ham-key-bad {
+  border: 1.5px dashed #c0392b;
+}
 section.env {
   margin: 1em 0;
 }

@@ -1,0 +1,295 @@
+\lectures{12,13}
+\title{P, NP, SAT, Poly-Time Reducibility}
+
+\begin{document}
+
+\subsection{Time Complexity}
+
+\textbf{Definition.}
+Let $M$ be a deterministic Turing machine decider.
+The \textbf{time complexity} of $M$ is the function
+$f \colon \mathbb{N} \to \mathbb{N}$ defined so that
+$f(n)$ is the maximum number of steps that $M$ takes
+on any input of length $n$.
+
+\textbf{Definition.}
+For any function $t \colon \mathbb{N} \to \mathbb{R}^+$,
+we may define its \textbf{time complexity class} $\mathrm{TIME}(t(n))$
+to be the set of all languages
+that are decidable by an $O(t(n))$-time Turing machine.
+
+\begin{problem}
+    Consider the language $A := \{\str{0}^k\str{1}^k \mid k \in \mathbb{N}_0\}$.
+    Show that $A \in \mathrm{TIME}(n \log n)$.
+\end{problem}
+
+\begin{solution}
+    The following Turing machine, on input $w$,
+    decides $A$ in $O(n \log n)$ time.
+    \begin{enumerate}
+        \item Perform a single scan to check that
+        $w \in \{\str{0}^a \str{1}^b \mid a, b \in \mathbb{N}_0\}$.
+        \item Repeat the following while there exist
+        both \str{0}s and \str{1}s on the tape.
+        \begin{enumerate}
+            \item[(a)] Perform a single scan
+            to check whether the total number of \str{0}s and \str{1}s
+            is odd.  If it is, \textsc{Reject}.
+            \item[(b)] Perform a single scan, and during this scan,
+            cross off every other \str{0} and
+            cross off every other \str{1}.
+        \end{enumerate}
+        \item Perform a single scan to check whether
+        the tape is now \emph{completely} empty.
+        If it is, \textsc{Accept};
+        otherwise, \textsc{Reject}.
+    \end{enumerate}
+    This algorithm performs, at worst, an $O(n)$-time scan
+    $O(\log n)$ times, so its time complexity is $O(n \log n)$, as promised.
+    ~ $\blacksquare$
+\end{solution}
+
+The bound $A \in \mathrm{TIME}(n \log n)$
+cannot be improved---in fact,
+any language decidable in $o(n \log n)$ time must be regular!
+
+However, this all relies heavily on
+taking our model of computation to be the single-tape Turing machine.
+
+\begin{problem}
+    Show that $A$ is decidable in $O(n)$ time
+    by a two-tape Turing machine.
+\end{problem}
+
+\begin{solution}
+    Simply cut and paste all of the \str{0}s
+    from the first tape to the second tape.
+    Then scan the two tapes in unison
+    and check that they contain the same number of characters.
+\end{solution}
+
+\subsection{Complexity Relationships Among Models}
+
+Fortunately, the time complexity of multitape TMs
+is not so different from their single-tape TM counterparts.
+
+\begin{theorem}{Multitape Time Complexity}
+    Every $t(n) \geq n$ time multitape TM
+    has an equivalent $O(t(n)^2)$ time single-tape TM.
+\end{theorem}
+
+\begin{proof}
+    We apply the same mapping from
+    multitape TMs $M$ to single-tape TMs $S$
+    used in \href{/18.404/lectures/6/#multi-tape-turing-machines}{Lecture 6}.
+
+    $S$ simulates each step of $M$ with the following substeps:
+    \begin{enumerate}
+        \item Read the entire active portion
+        $\str{T}_1\str{\#}\str{T}_2\str{\#}\dots\str{\#}\str{T}_k$
+        of the tape.
+        \item For each subtape $\str{T}_i$,
+        simulate $M$ on $\str{T}_i$ and
+        write out the result, performing right shifts as needed.
+    \end{enumerate}
+    The point is that the length of
+    $\str{T}_1\str{\#}\str{T}_2\str{\#}\dots\str{\#}\str{T}_k$
+    is at most $O(t(n))$,
+    so $S$ simulates each step of $M$ in $O(t(n))$ time.
+    Since $M$ must perform $O(t(n))$ such steps,
+    the time complexity of $S$ is $O(t(n)^2)$.
+    ~ $\blacksquare$
+\end{proof}
+
+We can perform a similar comparison between
+deterministic and nondeterministic TMs.
+
+\textbf{Definition.}
+Given a nondeterministic TM $N$ that is a decider,
+the \textbf{running time} of $N$ is the function
+$f \colon \mathbb{N} \to \mathbb{N}$ defined so that
+$f(n)$ is the maximum number of steps that $N$ takes
+\emph{on any branch} on any input of length $n$.
+
+\begin{theorem}{Nondeterministic Time Complexity}
+    Every $t(n) \geq n$ time nondeterministic (single-tape) TM
+    has an equivalent $2^{O(t(n))}$ time deterministic (single-tape) TM.
+\end{theorem}
+
+\begin{proof}
+    We apply the same mapping from
+    nondeterministic TMs $N$ to deterministic TMs $M$
+    used in \href{/18.404/lectures/6/#nondeterministic-turing-machines}{Lecture 6}.
+
+    Note that $M$ performs BFS on
+    the computation tree of $N$.
+    This tree has depth at most $t(n)$,
+    so it has at most $2^{O(t(n))}$ nodes.
+    Simulating each layer takes $2^{O(t(n))}$ time,
+    so the time complexity is $t(n) \cdot 2^{O(t(n))} = 2^{O(t(n))}$,
+    as promised. ~ $\blacksquare$
+\end{proof}
+
+\subsection{Polynomial Time (P)}
+
+\textbf{Definition.}
+Let $\mathrm{P}$ denote the class of languages that are decidable
+in polynomial time on a deterministic single-tape TM; that is,
+\[ \mathrm{P} := \bigcup_{k = 0}^{\infty} \mathrm{TIME}(n^k). \]
+
+One can show languages are in $\mathrm{P}$ via
+typical 6.1220 strategies.  For example,
+\begin{itemize}
+    \item The language $\mathrm{PATH} := \{
+        \langle G, s, t \rangle \mid
+        G \text{ is a directed graph with a path from } s \text{ to } t
+    \}$ is in $\mathrm{P}$.
+    \item The language $\mathrm{RELPRIME} := \{
+        \langle x, y \rangle \mid \gcd(x, y) = 1
+    \}$ is in $\mathrm{P}$.
+\end{itemize}
+
+Perhaps less obviously, one can show the following.
+
+\begin{theorem}{$A_{\mathrm{CFG}} \in \mathrm{P}$}
+    The language $A_{\mathrm{CFG}} := \{
+        \langle G, w \rangle \mid
+        G \text{ is a CFG that generates } w
+    \}$ is in $\mathrm{P}$.
+\end{theorem}
+
+\begin{proof}
+    Recall our strategy for deciding $A_{\mathrm{CFG}}$
+    from \href{/18.404/lectures/7/#algorithms-on-grammars-and-turing-machines-a-cfg-e-cfg-eq-cfg-a-tm}{Lecture 7};
+    in summary, the strategy was:
+    \begin{enumerate}
+        \item Convert $G$ to Chomsky Normal Form.
+        \item Note that any derivation of the input $w$
+        must apply a rule exactly $2|w| - 1$ times;
+        search through all such derivations.
+    \end{enumerate}
+    Step 1 is doable in polynomial time, but Step 2 is not!
+    There are exponentially many such derivations.
+
+    The trick, however, is to apply \emph{dynamic programming};
+    if $w = \str{w}_1\str{w}_2\dots\str{w}_n$, then
+    we memoize the following values:
+    \[
+    T[i, j] := \{A \mid A \text{ is a variable in } G
+    \text{ such that } A \text{ generates }
+    \str{w}_i\str{w}_{i + 1}\dots \str{w}_j\}.
+    \]
+    The key observation is that
+    $A$ generates $\str{w}_i\str{w}_{i + 1}\dots \str{w}_j$
+    if and only if \dots
+    \begin{itemize}
+        \item (``Inductive Case'': $i < j$)
+        \dots there is a rule $A \to BC$ and some $k \in [i, j)$
+        such that $B \in T[i, k]$ and $C \in T[k + 1, j]$.
+        \item (``Base Case'': $i = j$)
+        \dots there exists the rule $A \to \str{w}_i$ in $G$.
+    \end{itemize}
+    Therefore, $T[1, n]$ can be computed in $O(n^3|G|)$ time
+    via dynamic programming, as desired. ~ $\blacksquare$
+\end{proof}
+
+Then the following immediately follows.
+
+\begin{theorem}{$\mathrm{CFL} \subseteq \mathrm{P}$}
+    Every context-free language is a member of $\mathrm{P}$.
+\end{theorem}
+
+\begin{proof}
+    Suppose we wish to show the CFL with CFG $G$ is in $\mathrm{P}$.
+    Then on input $w$, we need a poly-time decider
+    for whether $w \in L(G)$.
+    Such a decider can just
+    run the poly-time decider for $A_{\mathrm{CFG}}$
+    on input $\langle G, w \rangle$.
+    ~ $\blacksquare$
+\end{proof}
+
+\subsection{Polynomial Verifiability (NP)}
+
+\textbf{Definition.}
+A \textbf{verifier} for a language $A$ is an algorithm $V$
+such that:
+\[
+    A = \{ w \mid V \text{ accepts } \langle w, c \rangle
+    \text{ for some string } c \}.
+\]
+A \textbf{polynomial time verifier} is a verifier $V$
+that runs in polynomial time in the length of $w$.
+
+\begin{remark}
+    Since $V$ runs in polynomial time in $|w|$,
+    it can only read polynomially many symbols of $c$.
+    So we can assume that the length $|c|$ of the certificate
+    is polynomial in $|w|$.
+\end{remark}
+
+\textbf{Definition.}
+Let $\mathrm{NP}$ denote the class of languages
+that have polynomial time verifiers.
+
+One can prove the following,
+which provides an equivalent alternative definition for $\mathrm{NP}$.
+
+\begin{theorem}{NP Iff NTM}
+    A language is in $\mathrm{NP}$
+    if and only if it is decided
+    by some nondeterministic polynomial time TM.
+\end{theorem}
+
+\begin{proof}
+    Just have the NTM simulate the verifier by guessing the certificate.
+    Conversely, a verifier can take an accepting branch of the NTM as the certificate.
+    ~ $\blacksquare$
+\end{proof}
+
+\textbf{Definition.}
+Denote $\mathrm{NTIME}(t(n)) := \{
+    L \mid L \text{ is a language decided by an }
+    O(t(n)) \text{ time NTM}
+\}$.  Then we have:
+\[
+    \mathrm{NP} = \bigcup_{k = 0}^{\infty} \mathrm{NTIME}(n^k).
+\]
+Via typical \href{/6.1220/lectures/14/}{6.1220} arguments,
+one can demonstrate the following:
+\begin{itemize}
+    \item The language $\mathrm{CLIQUE} := \{
+        \langle G, k \rangle \mid
+        G \text{ is an undirected graph with a } k\text{-clique}
+    \}$ is in $\mathrm{NP}$.
+    \item The language $\mathrm{SUBSET}\text{-}\mathrm{SUM} := \{
+        \langle S, t \rangle \mid
+        S \text{ is a multiset with a sub-multiset whose sum is } t
+    \}$ is in $\mathrm{NP}$.
+\end{itemize}
+
+\subsection{Poly-Time Reduction}
+
+Recall how we defined reductions in computability,
+back in \href{/18.404/lectures/9/#mapping-reducibility-eq-tm-eq-tm}{Lecture 9}.
+
+\textbf{Definition.}
+We say that a language $A$ is \textbf{polynomial-time reducible}
+to a language $B$ (denoted $A \leq_p B$) if
+there is a polynomial-time computable function
+$f \colon \Sigma^* \to \Sigma^*$ such that
+$w \in A$ if and only if $f(w) \in B$.
+
+\begin{theorem}{Poly-Time Reducibility and P}
+    If $A \leq_p B$ and $B \in \mathrm{P}$,
+    then $A \in \mathrm{P}$.
+\end{theorem}
+
+\begin{proof}
+    A poly-time decider for $A$, on input $w$,
+    can compute $f(w)$ in poly-time,
+    then run the poly-time decider for $B$ on $f(w)$.
+    ~ $\blacksquare$
+\end{proof}
+
+\end{document}

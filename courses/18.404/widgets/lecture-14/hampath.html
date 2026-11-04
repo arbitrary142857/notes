@@ -1,0 +1,488 @@
+<div class="note-widget-box clq-box ham-box">
+<div class="clq-toolbar">
+    <div class="arm-seg clq-presets" role="group" aria-label="Formula">
+        <button type="button" class="arm-seg-btn" data-p="example" aria-pressed="true">Example</button>
+        <button type="button" class="arm-seg-btn" data-p="unsat" aria-pressed="false">Unsatisfiable</button>
+        <button type="button" class="arm-seg-btn" data-p="random" aria-pressed="false">Random</button>
+    </div>
+    <div class="arm-seg clq-modes" role="group" aria-label="Mode">
+        <button type="button" class="arm-seg-btn" data-m="assign" aria-pressed="true">Find an assignment</button>
+        <button type="button" class="arm-seg-btn" data-m="path" aria-pressed="false">Find a path</button>
+    </div>
+</div>
+<p class="clq-goal"></p>
+<div class="clq-formula"></div>
+<div class="clq-key"></div>
+<div class="clq-assign"></div>
+<svg class="ham-graph" role="group" aria-label="The graph G"></svg>
+<p class="clq-caption" aria-live="polite"></p>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const presetBtns = Array.from(root.querySelectorAll(".clq-presets .arm-seg-btn"));
+    const modeBtns = Array.from(root.querySelectorAll(".clq-modes .arm-seg-btn"));
+    const formulaEl = root.querySelector(".clq-formula");
+    const assignEl = root.querySelector(".clq-assign");
+    const svg = root.querySelector(".ham-graph");
+    const goalEl = root.querySelector(".clq-goal");
+    const keyEl = root.querySelector(".clq-key");
+    const caption = root.querySelector(".clq-caption");
+    const NS = "http://www.w3.org/2000/svg";
+
+    // A literal is [variable, negated]. Clauses have exactly three literals; repeats are allowed.
+    const PRESETS = {
+        example: [
+            [[1, false], [2, false], [3, false]],
+            [[1, true], [2, true], [3, false]],
+            [[1, false], [2, true], [3, true]],
+        ],
+        unsat: [
+            [[1, false], [1, false], [1, false]],
+            [[1, true], [2, false], [2, false]],
+            [[2, true], [2, true], [2, true]],
+        ],
+    };
+
+    // Four clauses over x1..x4, each on three distinct variables with random signs.
+    function randomFormula() {
+        return Array.from({ length: 4 }, () => {
+            const drop = 1 + Math.floor(Math.random() * 4);
+            return [1, 2, 3, 4].filter((v) => v !== drop).map((v) => [v, Math.random() < 0.5]);
+        });
+    }
+
+    // Layout: row spacing, diamond height, node radii, and how far detour loops rise out of a row.
+    const DX = 24, H = 76, R_ROW = 5.5, R_HUB = 6, R_CL = 11, BEND = 30;
+
+    let clauses, vars, W;
+    let nodes, out, inn, hub, row, cl;
+    let mode = "assign";  // "assign": the user sets variables; "path": the user builds a path
+    let assign = {};      // variable -> boolean
+    let path = [];
+    let hover = null;     // { c, j, src }: highlight clause c's detours (only literal j's, if set)
+    let nodeEls = [], litEls = [], markEls = [], edgeEls = new Map(), stepLayer = null;
+
+    const litHTML = ([v, neg]) => `${neg ? "&not;" : ""}<i>x</i><sub>${v}</sub>`;
+    const clHTML = (c) => `<i>C</i><sub>${c + 1}</sub>`;
+
+    function el(tag, attrs) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+        return e;
+    }
+
+    function mathText(base, sub, attrs) {
+        const t = el("text", attrs);
+        const b = el("tspan", { "font-style": "italic" });
+        b.textContent = base;
+        t.append(b);
+        if (sub !== undefined) {
+            const s = el("tspan", { dy: 4, "font-size": 9 });
+            s.textContent = sub;
+            t.append(s);
+        }
+        return t;
+    }
+
+    function load(cls) {
+        clauses = cls;
+        W = 3 * cls.length + 3;
+        vars = [...new Set(cls.flat().map(([v]) => v))].sort((a, b) => a - b);
+        assign = Object.fromEntries(vars.map((v) => [v, false]));
+        hover = null;
+        buildGraph();
+        buildFormula();
+        buildAssign();
+        path = [hub[0]];
+        update();
+    }
+
+    function setHover(h) {
+        hover = h;
+        update();
+    }
+
+    function bindHover(target, src, h) {
+        target.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && h()) setHover({ ...h(), src }); });
+        target.addEventListener("pointerleave", () => { if (hover && hover.src === src) setHover(null); });
+    }
+
+    function buildFormula() {
+        formulaEl.innerHTML = "<i>&phi;</i> = " + clauses.map((clause, c) =>
+            `<span class="clq-clause" data-c="${c}"><span class="clq-cl-body">(` + clause.map((lit, j) =>
+                `<span class="clq-lit" data-i="${3 * c + j}">${litHTML(lit)}</span>`
+            ).join(" &or; ") + `)</span><span class="clq-cl-tag">${clHTML(c)} <span class="clq-mark"></span></span></span>`
+        ).join(" &and; ");
+        markEls = Array.from(formulaEl.querySelectorAll(".clq-mark"));
+        litEls = Array.from(formulaEl.querySelectorAll(".clq-lit"));
+        litEls.forEach((e, i) => bindHover(e, `lit${i}`, () => ({ c: Math.floor(i / 3), j: i % 3 })));
+    }
+
+    // Each variable gets a T | F switch; the lit side is its value.
+    function buildAssign() {
+        assignEl.innerHTML = vars.map((v) =>
+            `<div class="clq-var" data-v="${v}"><span class="clq-var-name"><i>x</i><sub>${v}</sub></span>`
+            + `<span class="clq-tf" role="group" aria-label="Value of x${v}">`
+            + `<button type="button" data-t="1">T</button><button type="button" data-t="0">F</button>`
+            + `</span></div>`).join("");
+        assignEl.querySelectorAll(".clq-var").forEach((r) => r.querySelectorAll("button").forEach((b) =>
+            b.addEventListener("click", () => {
+                assign[+r.dataset.v] = b.dataset.t === "1";
+                update();
+            })));
+    }
+
+    // Sipser's construction. Diamond d (for variable vars[d]) runs from hub[d] down to hub[d + 1],
+    // with s = hub[0] and t = hub[n]. Its horizontal row is row[d][0..W-1]: the two corners at the ends,
+    // and between them a separator, then for each clause a pair of nodes followed by another separator.
+    function buildGraph() {
+        nodes = [];
+        out = [];
+        inn = [];
+        const add = (o) => { nodes.push(o); out.push(new Set()); inn.push(new Set()); return nodes.length - 1; };
+        const n = vars.length, k = clauses.length;
+        hub = Array.from({ length: n + 1 }, (_, d) =>
+            add({ kind: "hub", d, x: (W - 1) * DX / 2, y: d * H, r: R_HUB }));
+        row = vars.map((_, d) => Array.from({ length: W }, (_, p) => {
+            const q = p - 2, pair = p >= 2 && p <= 3 * k && q % 3 !== 2;
+            return add({
+                kind: "row", d, p, c: pair ? Math.floor(q / 3) : -1, side: pair ? q % 3 : -1,
+                x: p * DX, y: d * H + H / 2, r: R_ROW,
+            });
+        }));
+        const X = (W - 1) * DX + 84, span = Math.max((n - 1) * H, (k - 1) * 34);
+        cl = clauses.map((_, c) =>
+            add({ kind: "clause", c, x: X, y: n * H / 2 + (k === 1 ? 0 : span * (c / (k - 1) - 0.5)), r: R_CL }));
+
+        const link = (a, b) => { out[a].add(b); inn[b].add(a); };
+        row.forEach((line, d) => {
+            for (const corner of [line[0], line[W - 1]]) { link(hub[d], corner); link(corner, hub[d + 1]); }
+            for (let p = 0; p + 1 < W; p++) { link(line[p], line[p + 1]); link(line[p + 1], line[p]); }
+        });
+        // x_i in C_j: a detour left -> C_j -> right through pair j of x_i's row; for not-x_i, right -> C_j -> left.
+        clauses.forEach((clause, c) => clause.forEach(([v, neg]) => {
+            const line = row[vars.indexOf(v)], L = line[3 * c + 2], R = line[3 * c + 3];
+            const [a, b] = neg ? [R, L] : [L, R];
+            link(a, cl[c]);
+            link(cl[c], b);
+        }));
+
+        svg.textContent = "";
+        const edgeLayer = el("g"), loopLayer = el("g"), nodeLayer = el("g"), labelLayer = el("g");
+        stepLayer = el("g");
+        svg.append(edgeLayer, loopLayer, stepLayer, nodeLayer, labelLayer);
+
+        // Row edges go both ways and diamond edges all point down, so neither gets an arrowhead.
+        // A detour gets one where it returns to its row, which fixes the direction of the whole loop.
+        edgeEls = new Map();
+        out.forEach((targets, a) => targets.forEach((b) => {
+            if (edgeEls.has(`${a}>${b}`)) return;
+            const A = nodes[a], B = nodes[b];
+            let e;
+            if (A.kind === "clause" || B.kind === "clause") {
+                e = edgeEl(a, b, "ham-edge ham-loop", A.kind === "clause" ? 5.5 : 0);
+                e.setAttribute("data-c", A.kind === "clause" ? A.c : B.c);
+                loopLayer.append(e);
+            } else {
+                e = edgeEl(a, b, "ham-edge", 0);
+                if (A.kind === "row" && B.kind === "row") edgeEls.set(`${b}>${a}`, e);
+                edgeLayer.append(e);
+            }
+            edgeEls.set(`${a}>${b}`, e);
+        }));
+
+        nodeEls = nodes.map((nd, u) => {
+            const g = el("g", { class: `ham-node ham-${nd.kind}`, transform: `translate(${nd.x} ${nd.y})` });
+            if (nd.c >= 0) g.setAttribute("data-c", nd.c);
+            g.append(
+                el("circle", { class: "ham-hit", r: Math.max(nd.r + 3, 11) }),
+                el("circle", { class: "ham-ring", r: nd.r + 3.5 }),
+                el("circle", { class: "ham-dot", r: nd.r }));
+            if (nd.kind === "clause") g.append(mathText("C", nd.c + 1, { y: 4 }));
+            g.addEventListener("click", () => clickNode(u));
+            g.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); clickNode(u); }
+            });
+            // Hovering a clause node shows all its detours; hovering a pair node shows that row's.
+            bindHover(g, `node${u}`, () => {
+                if (nd.kind === "clause") return { c: nd.c };
+                if (!(nd.c >= 0)) return null;
+                return { c: nd.c, j: clauses[nd.c].findIndex(([v]) => v === vars[nd.d]) };
+            });
+            nodeLayer.append(g);
+            return g;
+        });
+
+        vars.forEach((v, d) => labelLayer.append(mathText("x", v, { class: "ham-label", x: -12, y: d * H + H / 2 + 4 })));
+        labelLayer.append(
+            mathText("s", undefined, { class: "ham-label ham-hub-label", x: nodes[hub[0]].x, y: -11 }),
+            mathText("t", undefined, { class: "ham-label ham-hub-label", x: nodes[hub[n]].x, y: n * H + 20 }));
+
+        const minX = -36, minY = -26, maxX = X + R_CL + 6, maxY = n * H + 26;
+        svg.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+        svg.style.maxWidth = `${(maxX - minX) * 0.075}em`;  // keep nodes the same size across formulas
+    }
+
+    // Cubic Bezier control points for edge a -> b, running from rim to rim.
+    function ctrl(a, b) {
+        const A = nodes[a], B = nodes[b];
+        if (A.kind !== "clause" && B.kind !== "clause") {
+            const len = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
+            const p0 = [A.x + ux * A.r, A.y + uy * A.r], p3 = [B.x - ux * (B.r + 0.5), B.y - uy * (B.r + 0.5)];
+            return [p0, lerp(p0, p3, 1 / 3), lerp(p0, p3, 2 / 3), p3];
+        }
+        // A detour leaves its row vertically, toward the clause node, and meets the clause node from
+        // the left: arriving just above its center and leaving just below.
+        const toClause = B.kind === "clause";
+        const C = toClause ? B : A, P = toClause ? A : B;
+        const s = C.y <= P.y ? -1 : 1, t = toClause ? -1 : 1;
+        const rowEnd = [P.x, P.y + s * (P.r + 0.5)], rowCtl = [P.x, P.y + s * BEND];
+        const clEnd = [C.x - C.r * Math.cos(0.3), C.y + t * C.r * Math.sin(0.3)], clCtl = [C.x - 56, C.y + t * 6];
+        return toClause ? [rowEnd, rowCtl, clCtl, clEnd] : [clEnd, clCtl, rowCtl, rowEnd];
+    }
+
+    const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+
+    // The control points of the part of Bezier P over [0, t] (de Casteljau); its last point is P(t).
+    function split(P, t) {
+        const [a, b, c] = [lerp(P[0], P[1], t), lerp(P[1], P[2], t), lerp(P[2], P[3], t)];
+        const [d, e] = [lerp(a, b, t), lerp(b, c, t)];
+        return [P[0], a, d, lerp(d, e, t)];
+    }
+
+    // Edge a -> b as a group of its curve and, if head > 0, an arrowhead of that length. The curve stops
+    // at the head's base, and the head points along the chord it replaces, so it follows the curve.
+    function edgeEl(a, b, cls, head) {
+        const g = el("g", { class: cls });
+        let P = ctrl(a, b);
+        if (head > 0) {
+            const tip = P[3], far = (t) => { const q = split(P, t)[3]; return Math.hypot(tip[0] - q[0], tip[1] - q[1]) > head; };
+            let lo = 0, hi = 1;
+            for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (far(m)) lo = m; else hi = m; }
+            P = split(P, lo);
+            const base = P[3], ux = (tip[0] - base[0]) / head, uy = (tip[1] - base[1]) / head, w = head * 0.42;
+            g.append(el("path", { d: `M${P[0]}C${P[1]} ${P[2]} ${P[3]}` }), el("polygon", {
+                class: "ham-head",
+                points: `${tip} ${base[0] - uy * w},${base[1] + ux * w} ${base[0] + uy * w},${base[1] - ux * w}`,
+            }));
+        } else {
+            g.append(el("path", { d: `M${P[0]}C${P[1]} ${P[2]} ${P[3]}` }));
+        }
+        return g;
+    }
+
+    // The path an assignment gives: each row is run left to right if its variable is true, right to left
+    // if false, and each satisfied clause is visited by a detour from the row of its first true literal.
+    function assignPath() {
+        const via = clauses.map((clause) => clause.find(([v, neg]) => assign[v] !== neg));
+        const p = [hub[0]];
+        vars.forEach((v, d) => {
+            const line = assign[v] ? row[d] : [...row[d]].reverse();
+            line.forEach((u) => {
+                p.push(u);
+                const { c, side } = nodes[u];
+                if (c >= 0 && side === (assign[v] ? 0 : 1) && via[c] && via[c][0] === v) p.push(cl[c]);
+            });
+            p.push(hub[d + 1]);
+        });
+        return p;
+    }
+
+    // The nodes to append so the path reaches u: u itself if it's an out-neighbor of the path's end,
+    // or a run of unvisited nodes along the end's row. null if neither.
+    function reach(u, onPath) {
+        const e = path[path.length - 1];
+        if (onPath.has(u)) return null;
+        if (out[e].has(u)) return [u];
+        const a = nodes[e], b = nodes[u];
+        if (a.kind !== "row" || b.kind !== "row" || a.d !== b.d) return null;
+        const step = Math.sign(b.p - a.p), run = [];
+        for (let p = a.p + step; ; p += step) {
+            const w = row[a.d][p];
+            if (onPath.has(w)) return null;
+            run.push(w);
+            if (p === b.p) return run;
+        }
+    }
+
+    // Unvisited nodes no extension of the path can pass through: every node but t needs a way in
+    // (from the end or an unvisited node) and a different way out (to an unvisited node).
+    function stuckNodes(onPath) {
+        const e = path[path.length - 1], T = hub[vars.length];
+        return nodes.map((_, u) => u).filter((u) => {
+            if (onPath.has(u)) return false;
+            const ins = [...inn[u]].filter((p) => p === e || !onPath.has(p));
+            if (u === T) return ins.length === 0;
+            const outs = [...out[u]].filter((q) => !onPath.has(q));
+            return !ins.some((p) => outs.some((q) => q !== p));
+        });
+    }
+
+    // Clicking an unvisited node extends the path to it; clicking a node on the path backs up to it
+    // (or, for the path's last node, past it).
+    function clickNode(u) {
+        if (mode !== "path") return;
+        const i = path.indexOf(u);
+        if (i >= 0) {
+            path = path.slice(0, i === path.length - 1 ? Math.max(i, 1) : i + 1);
+        } else {
+            const run = reach(u, new Set(path));
+            if (!run) return;
+            path = path.concat(run);
+        }
+        update();
+    }
+
+    function nameOf(u) {
+        const nd = nodes[u], x = (d) => `<i>x</i><sub>${vars[d]}</sub>`;
+        if (nd.kind === "clause") return clHTML(nd.c);
+        if (nd.kind === "row") return `a node in ${x(nd.d)}&rsquo;s row`;
+        return `the node between the ${x(nd.d - 1)} and ${x(nd.d)} diamonds`;
+    }
+
+    function update() {
+        const T = hub[vars.length];
+        if (mode === "assign") path = assignPath();
+        const onPath = new Set(path), e = path[path.length - 1];
+        const pos = new Map(path.map((u, i) => [u, i]));
+
+        // For each clause, the literal whose detour the path takes (entering and leaving the clause node
+        // from the same row), or -1.
+        const used = clauses.map((clause, c) => {
+            const i = pos.get(cl[c]);
+            if (i === undefined || i === path.length - 1) return -1;
+            const a = nodes[path[i - 1]], b = nodes[path[i + 1]];
+            if (a.d !== b.d) return -1;
+            return clause.findIndex(([v, neg]) => v === vars[a.d] && neg === (a.side === 1));
+        });
+        // For each row: true if the path runs it left to right, false if right to left, null if not yet.
+        const dir = vars.map((_, d) => {
+            const i = pos.get(hub[d]);
+            const next = i === undefined ? undefined : path[i + 1];
+            return next === row[d][0] ? true : next === row[d][W - 1] ? false : null;
+        });
+
+        // Red rings: clause nodes the assignment's path misses, nodes a path to t skipped,
+        // or nodes the current path can no longer be extended through.
+        let bad;
+        if (mode === "assign") bad = cl.filter((u) => !onPath.has(u));
+        else if (e === T) bad = nodes.map((_, u) => u).filter((u) => !onPath.has(u));
+        else bad = stuckNodes(onPath);
+        const badSet = new Set(bad);
+        const next = new Set(mode === "path" && e !== T ? [...out[e]].filter((q) => !onPath.has(q)) : []);
+        const deadEnd = mode === "path" && e !== T && next.size === 0;
+
+        const hot = new Set(), hovNodes = new Set();
+        if (hover) {
+            hovNodes.add(cl[hover.c]);
+            clauses[hover.c].forEach(([v], j) => {
+                if (hover.j !== undefined && hover.j !== j) return;
+                const line = row[vars.indexOf(v)];
+                [line[3 * hover.c + 2], line[3 * hover.c + 3]].forEach((u) => {
+                    hovNodes.add(u);
+                    [`${u}>${cl[hover.c]}`, `${cl[hover.c]}>${u}`].forEach((key) => {
+                        if (edgeEls.has(key)) hot.add(edgeEls.get(key));
+                    });
+                });
+            });
+        }
+        edgeEls.forEach((line) => line.classList.toggle("ham-hot", hot.has(line)));
+        svg.classList.toggle("ham-hovering", !!hover);
+
+        nodeEls.forEach((g, u) => {
+            const live = mode === "path" && (onPath.has(u) || reach(u, onPath) !== null);
+            g.classList.toggle("ham-on", onPath.has(u));
+            g.classList.toggle("ham-next", next.has(u));
+            g.classList.toggle("ham-bad", badSet.has(u));
+            g.classList.toggle("ham-hov", hovNodes.has(u));
+            g.classList.toggle("ham-live", live);
+            if (live) {
+                g.setAttribute("tabindex", 0);
+                g.setAttribute("role", "button");
+            } else {
+                ["tabindex", "role"].forEach((a) => g.removeAttribute(a));
+            }
+        });
+
+        // The path's arrowheads go on its detours and at the end of each run along a row.
+        stepLayer.textContent = "";
+        const rowStep = (i) => i + 1 < path.length && nodes[path[i]].kind === "row" && nodes[path[i + 1]].kind === "row";
+        path.slice(1).forEach((b, i) => {
+            const detour = nodes[path[i]].kind === "clause" || nodes[b].kind === "clause";
+            stepLayer.append(edgeEl(path[i], b, "ham-step", detour || (rowStep(i) && !rowStep(i + 1)) ? 7 : 0));
+        });
+
+        litEls.forEach((s, i) => {
+            const c = Math.floor(i / 3), j = i % 3, [v, neg] = clauses[c][j];
+            s.classList.toggle("clq-sel", used[c] === j);
+            s.classList.toggle("clq-false", mode === "assign" && assign[v] === neg);
+            s.classList.toggle("clq-hov", !!hover && hover.c === c && (hover.j === undefined || hover.j === j));
+        });
+        markEls.forEach((m, c) => {
+            m.textContent = used[c] >= 0 ? "✓" : mode === "assign" ? "✗" : "";
+            m.classList.toggle("clq-ok", used[c] >= 0);
+        });
+
+        // In path mode the switches are read-only and show the direction the path runs each row.
+        assignEl.querySelectorAll(".clq-var").forEach((r, d) => {
+            const val = mode === "assign" ? assign[vars[d]] : dir[d];
+            const [tBtn, fBtn] = r.querySelectorAll("button");
+            tBtn.setAttribute("aria-pressed", String(val === true));
+            fBtn.setAttribute("aria-pressed", String(val === false));
+            tBtn.disabled = fBtn.disabled = mode !== "assign";
+        });
+
+        // Orange marks what the user interacts with in the current mode.
+        const act = (s) => `<span class="clq-act">${s}</span>`;
+        const keySel = `<span class="clq-key-sel"><i>x</i></span>`;
+        if (mode === "assign") {
+            goalEl.innerHTML = `<b>Goal:</b> ${act("set the variables")} so every clause is satisfied.`;
+            keyEl.innerHTML = `${keySel} literal the path detours through &ensp; <span class="clq-key-false"><i>x</i></span> false `
+                + `&ensp; <span class="clq-mark clq-ok">&#10003;</span>/<span class="clq-mark">&#10007;</span> clause satisfied / not`
+                + ` &ensp; T/F: row run &rarr;/&larr;`;
+        } else {
+            goalEl.innerHTML = `<b>Goal:</b> ${act("click nodes")} to build a Hamiltonian path from <i>s</i> to <i>t</i>.`;
+            keyEl.innerHTML = `${keySel} literal the path detours through &ensp; `
+                + `<span class="clq-mark clq-ok">&#10003;</span> clause visited by a detour &ensp; `
+                + `<span class="ham-key-ring"></span> ${act("next")} &ensp; <span class="ham-key-ring ham-key-bad"></span> stuck`;
+        }
+
+        let text;
+        if (mode === "assign") {
+            const missed = used.findIndex((j) => j < 0);
+            text = missed < 0
+                ? `<i>&phi;</i> is satisfied, and the path it gives is Hamiltonian.`
+                : `The path misses ${clHTML(missed)}: its literals are all false, `
+                + `so no row passes its pair in the direction that detours through it.`;
+        } else if (e === T) {
+            text = bad.length === 0
+                ? `A Hamiltonian path, and the directions it runs the rows give an assignment satisfying <i>&phi;</i>.`
+                : `This path reaches <i>t</i> but skips ${bad.length} node${bad.length > 1 ? "s" : ""}.`;
+        } else if (deadEnd) {
+            text = `Dead end: every out-neighbor of the last node is already on the path.`;
+        } else if (bad.length > 0) {
+            text = bad[0] === T
+                ? `No Hamiltonian path extends this one: <i>t</i> can no longer be reached.`
+                : `No Hamiltonian path extends this one: ${nameOf(bad[0])} can no longer be entered and then left.`;
+        } else {
+            text = `${path.length} of ${nodes.length} nodes visited. Click a node on the path to back up to it.`;
+        }
+        caption.innerHTML = text;
+    }
+
+    presetBtns.forEach((b) => b.addEventListener("click", () => {
+        presetBtns.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        load(b.dataset.p === "random" ? randomFormula() : PRESETS[b.dataset.p]);
+    }));
+    modeBtns.forEach((b) => b.addEventListener("click", () => {
+        mode = b.dataset.m;
+        modeBtns.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        path = [hub[0]];
+        update();
+    }));
+
+    load(PRESETS.example);
+})();
+</script>

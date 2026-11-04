@@ -1,0 +1,116 @@
+\lectures{14}
+\title{NP-Completeness}
+
+\begin{document}
+
+\subsection{NP-Completeness}
+
+\textbf{Definition.}
+A language $B$ is \textbf{NP-complete}
+if $B \in \mathrm{NP}$ and
+$A \leq_p B$ for every $A \in \mathrm{NP}$.
+
+\begin{remark}
+    Make an analogy:
+    the language $A_{\mathrm{TM}}$ is Turing-recognizable,
+    and $L \leq_m A_{\mathrm{TM}}$ for any Turing-recognizable $L$.
+\end{remark}
+
+The star of NP-completeness will be $\mathrm{3SAT}$.
+
+For today's lecture,
+let's black-box the following result;
+we'll prove this result next lecture.
+
+\begin{boxed-text}
+    \textbf{Cook-Levin Theorem.}
+    The language $\mathrm{3SAT}$ is
+    NP-complete.
+\end{boxed-text}
+
+\begin{remark}
+    Refer to \href{/6.1220/lectures/14/}{6.1220 Notes}
+    for a definition of $\mathrm{3SAT}$.
+\end{remark}
+
+We'll use the above result to prove the NP-completeness
+of other languages.
+
+\subsection{CLIQUE}
+
+\begin{theorem}{CLIQUE}
+    The language $\mathrm{CLIQUE} := \{
+        \langle G, k \rangle \mid
+        G \text{ is an undirected graph with a } k\text{-clique}
+    \}$ is NP-complete.
+\end{theorem}
+
+\begin{proof}
+    It suffices to construct a
+    poly-time reduction from $\mathrm{3SAT}$ to $\mathrm{CLIQUE}$.
+    Given a 3CNF with $k$ clauses, we construct $\langle G, k \rangle$, where $G$ is a graph in which:
+    \begin{itemize}
+        \item The nodes are the literals, one per occurrence in a clause.
+        \item An edge is drawn between two literals if and only if
+        they are \emph{not} \dots
+        \begin{itemize}
+            \item \dots in the same clause, nor \dots
+            \item \dots complements of each other
+            (e.g., $a$ and $\neg a$).
+        \end{itemize}
+    \end{itemize}
+    You can play around with the (warning: AI-generated) widget below
+    to get a feel for why this reduction works.
+
+    \includewidget{lecture-14/clique}
+
+    Note that one must check two things to show the reduction is valid:
+    both $w \in A \implies f(w) \in B$ and $f(w) \in B \implies w \in A$.
+    Convince yourself that both of these are true. ~ $\blacksquare$
+\end{proof}
+
+\subsection{HAMPATH}
+
+\begin{theorem}{HAMPATH}
+    The language $\mathrm{HAMPATH} := \{
+        \langle G, s, t \rangle \mid
+        G \text{ is a directed graph with a Hamiltonian path from } s \text{ to } t
+    \}$ is NP-complete.
+\end{theorem}
+
+\begin{proof}
+    Again, we construct a poly-time reduction
+    from $\mathrm{3SAT}$ to $\mathrm{HAMPATH}$.
+    Given a 3CNF, we construct a graph $G$ in which:
+    \begin{itemize}
+        \item There is one \emph{diamond} for every variable $x_i$.
+        \begin{itemize}
+            \item If $x_i = \textsc{True}$,
+            then the diamond's middle path points from left to right.
+            If $x_i = \textsc{False}$, it's right to left.
+        \end{itemize}
+        \item There is one node for every clause.
+        \begin{itemize}
+            \item \emph{Example:} If clause $C_2$ has literals
+            $\neg x_1 \vee \neg x_2 \vee x_3$,
+            then it may only be reached by \dots
+            \begin{itemize}
+                \item \dots traversing $x_1$'s diamond
+                from right to left (i.e., if $x_1 = \textsc{False}$).
+                \item \dots traversing $x_2$'s diamond
+                from right to left (i.e., if $x_2 = \textsc{False}$).
+                \item \dots traversing $x_3$'s diamond
+                from left to right (i.e., if $x_3 = \textsc{True}$).
+            \end{itemize}
+        \end{itemize}
+    \end{itemize}
+    You can play around with the (warning: AI-generated) widget below
+    to see how this works.
+
+    \includewidget{lecture-14/hampath}
+
+    As before, a formal proof would justify this reduction
+    in both directions, but we omit the details. ~ $\blacksquare$
+\end{proof}
+
+\end{document}

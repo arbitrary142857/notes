@@ -1,0 +1,315 @@
+<div class="note-widget-box clq-box">
+<div class="clq-toolbar">
+    <div class="arm-seg clq-presets" role="group" aria-label="Formula">
+        <button type="button" class="arm-seg-btn" data-p="example" aria-pressed="true">Example</button>
+        <button type="button" class="arm-seg-btn" data-p="unsat" aria-pressed="false">Unsatisfiable</button>
+        <button type="button" class="arm-seg-btn" data-p="random" aria-pressed="false">Random</button>
+    </div>
+    <div class="arm-seg clq-modes" role="group" aria-label="Mode">
+        <button type="button" class="arm-seg-btn" data-m="assign" aria-pressed="true">Find an assignment</button>
+        <button type="button" class="arm-seg-btn" data-m="clique" aria-pressed="false">Find a clique</button>
+    </div>
+</div>
+<p class="clq-goal"></p>
+<div class="clq-formula"></div>
+<div class="clq-key"></div>
+<div class="clq-assign"></div>
+<svg class="clq-graph" role="group" aria-label="The graph G"></svg>
+<p class="clq-caption" aria-live="polite"></p>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const presetBtns = Array.from(root.querySelectorAll(".clq-presets .arm-seg-btn"));
+    const modeBtns = Array.from(root.querySelectorAll(".clq-modes .arm-seg-btn"));
+    const formulaEl = root.querySelector(".clq-formula");
+    const assignEl = root.querySelector(".clq-assign");
+    const svg = root.querySelector(".clq-graph");
+    const box = root.querySelector(".clq-box");
+    const goalEl = root.querySelector(".clq-goal");
+    const keyEl = root.querySelector(".clq-key");
+    const caption = root.querySelector(".clq-caption");
+    const NS = "http://www.w3.org/2000/svg";
+
+    // A literal is [variable, negated]. Clauses have exactly three literals; repeats are allowed.
+    const PRESETS = {
+        example: [
+            [[1, false], [2, false], [3, false]],
+            [[1, true], [2, true], [3, false]],
+            [[1, false], [2, true], [3, true]],
+        ],
+        unsat: [
+            [[1, false], [1, false], [1, false]],
+            [[1, true], [2, false], [2, false]],
+            [[2, true], [2, true], [2, true]],
+        ],
+    };
+
+    // Four clauses over x1..x4, each on three distinct variables with random signs.
+    function randomFormula() {
+        return Array.from({ length: 4 }, () => {
+            const drop = 1 + Math.floor(Math.random() * 4);
+            return [1, 2, 3, 4].filter((v) => v !== drop).map((v) => [v, Math.random() < 0.5]);
+        });
+    }
+
+    let clauses, nodes, vars;
+    let mode = "assign";  // "assign": the user sets variables; "clique": the user picks nodes
+    let assign = {};      // variable -> boolean
+    let picked = new Set(); // clique mode: the selected nodes
+    let hover = -1;
+    let nodeEls = [], litEls = [], markEls = [], edgeEls = [], missLayer = null;
+
+    const adjacent = (a, b) => nodes[a].c !== nodes[b].c
+        && !(nodes[a].v === nodes[b].v && nodes[a].neg !== nodes[b].neg);
+    const isTrue = (i) => assign[nodes[i].v] !== nodes[i].neg;
+    const litHTML = (n) => `${n.neg ? "&not;" : ""}<i>x</i><sub>${n.v}</sub>`;
+
+    function el(tag, attrs) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+        return e;
+    }
+
+    function load(cls) {
+        clauses = cls;
+        nodes = [];
+        cls.forEach((cl, c) => cl.forEach(([v, neg]) => nodes.push({ c, v, neg })));
+        vars = [...new Set(nodes.map((n) => n.v))].sort((a, b) => a - b);
+        assign = Object.fromEntries(vars.map((v) => [v, false]));
+        picked = new Set();
+        hover = -1;
+        buildFormula();
+        buildAssign();
+        buildGraph();
+        update();
+    }
+
+    function bindNode(target, i) {
+        target.addEventListener("click", () => pick(i));
+        target.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { hover = i; update(); } });
+        target.addEventListener("pointerleave", () => { if (hover === i) { hover = -1; update(); } });
+    }
+
+    // Each clause carries a tag naming its triple in G, with a mark for whether it's satisfied.
+    function buildFormula() {
+        formulaEl.innerHTML = "<i>&phi;</i> = " + clauses.map((cl, c) =>
+            `<span class="clq-clause" data-c="${c}"><span class="clq-cl-body">(` + cl.map((_, j) =>
+                `<span class="clq-lit" data-i="${3 * c + j}">${litHTML(nodes[3 * c + j])}</span>`
+            ).join(" &or; ") + `)</span><span class="clq-cl-tag"><i>C</i><sub>${c + 1}</sub>`
+            + ` <span class="clq-mark"></span></span></span>`
+        ).join(" &and; ");
+        markEls = Array.from(formulaEl.querySelectorAll(".clq-mark"));
+        litEls = Array.from(formulaEl.querySelectorAll(".clq-lit"));
+        litEls.forEach((e, i) => bindNode(e, i));
+    }
+
+    // Each variable gets a T | F switch; the lit side is its value.
+    function buildAssign() {
+        assignEl.innerHTML = vars.map((v) =>
+            `<div class="clq-var" data-v="${v}"><span class="clq-var-name"><i>x</i><sub>${v}</sub></span>`
+            + `<span class="clq-tf" role="group" aria-label="Value of x${v}">`
+            + `<button type="button" data-t="1">T</button><button type="button" data-t="0">F</button>`
+            + `</span></div>`).join("");
+        assignEl.querySelectorAll(".clq-var").forEach((row) => row.querySelectorAll("button").forEach((b) =>
+            b.addEventListener("click", () => {
+                assign[+row.dataset.v] = b.dataset.t === "1";
+                update();
+            })));
+    }
+
+    function buildGraph() {
+        const k = clauses.length, R = k === 3 ? 112 : 128, S = 46, r = 16, pad = r + 6;
+        svg.textContent = "";
+        const hullLayer = el("g"), edgeLayer = el("g"), nodeLayer = el("g");
+        missLayer = el("g");
+        svg.append(hullLayer, edgeLayer, missLayer, nodeLayer);
+
+        // Triples sit around a circle, each laid along its tangent and read top to bottom (left to right if flat).
+        const pos = [];
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const grow = (x, y, m) => {
+            minX = Math.min(minX, x - m); maxX = Math.max(maxX, x + m);
+            minY = Math.min(minY, y - m); maxY = Math.max(maxY, y + m);
+        };
+        for (let c = 0; c < k; c++) {
+            const a = -Math.PI / 2 + 2 * Math.PI * c / k;
+            let tx = -Math.sin(a), ty = Math.cos(a);
+            if (Math.abs(ty) > 0.5 ? ty < 0 : tx < 0) { tx = -tx; ty = -ty; }
+            const cx = R * Math.cos(a), cy = R * Math.sin(a);
+            for (let j = 0; j < 3; j++) {
+                pos.push([cx + (j - 1) * S * tx, cy + (j - 1) * S * ty]);
+                grow(...pos[pos.length - 1], pad);
+            }
+            hullLayer.append(el("rect", {
+                class: "clq-hull", "data-c": c,
+                x: -(S + pad), y: -pad, width: 2 * (S + pad), height: 2 * pad, rx: pad,
+                transform: `translate(${cx} ${cy}) rotate(${Math.atan2(ty, tx) * 180 / Math.PI})`,
+            }));
+            const lx = (R + pad + 14) * Math.cos(a), ly = (R + pad + 14) * Math.sin(a);
+            const label = el("text", { class: "clq-label", "data-c": c, x: lx, y: ly + 4 });
+            const ci = el("tspan", { "font-style": "italic" });
+            ci.textContent = "C";
+            const cs = el("tspan", { dy: 4, "font-size": 9 });
+            cs.textContent = c + 1;
+            label.append(ci, cs);
+            hullLayer.append(label);
+            grow(lx, ly, 14);
+        }
+        svg.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+        svg.style.maxWidth = k === 3 ? "24em" : "29em";  // keep node labels the same size for both k
+
+        edgeEls = [];
+        for (let a = 0; a < nodes.length; a++) {
+            for (let b = a + 1; b < nodes.length; b++) {
+                if (!adjacent(a, b)) continue;
+                const line = el("line", { class: "clq-edge", x1: pos[a][0], y1: pos[a][1], x2: pos[b][0], y2: pos[b][1] });
+                edgeLayer.append(line);
+                edgeEls.push({ a, b, line });
+            }
+        }
+
+        nodeEls = nodes.map((n, i) => {
+            const g = el("g", { class: "clq-node", "data-c": n.c, transform: `translate(${pos[i][0]} ${pos[i][1]})` });
+            g.dataset.x = pos[i][0];
+            g.dataset.y = pos[i][1];
+            const t = el("text", { y: 4 });
+            if (n.neg) t.append("¬");
+            const x = el("tspan", { "font-style": "italic" });
+            x.textContent = "x";
+            const sub = el("tspan", { dy: 4, "font-size": 9 });
+            sub.textContent = n.v;
+            t.append(x, sub);
+            g.append(el("circle", { r }), t);
+            bindNode(g, i);
+            g.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(i); }
+            });
+            nodeLayer.append(g);
+            return g;
+        });
+    }
+
+    // Nodes are input only in clique mode; in assign mode the graph just shows the implied clique.
+    function pick(i) {
+        if (mode !== "clique") return;
+        if (picked.has(i)) picked.delete(i);
+        else picked.add(i);
+        update();
+    }
+
+    // Assign mode takes the first true literal of each satisfied clause.
+    function selection() {
+        if (mode === "clique") return [...picked].sort((a, b) => a - b);
+        return clauses.map((_, c) => {
+            const j = [0, 1, 2].find((j) => isTrue(3 * c + j));
+            return j === undefined ? -1 : 3 * c + j;
+        }).filter((i) => i >= 0);
+    }
+
+    function update() {
+        const k = clauses.length;
+        const sel = selection(), selSet = new Set(sel);
+        const miss = [];  // pairs of selected nodes with no edge between them
+        sel.forEach((a, ia) => sel.slice(ia + 1).forEach((b) => { if (!adjacent(a, b)) miss.push([a, b]); }));
+        const clashing = new Set(miss.flat());
+        // Assign mode: a clause is satisfied if it has a true literal.
+        // Clique mode: if its triple has a selected node that clashes with no other selected node.
+        const sat = clauses.map((_, c) => [0, 1, 2].some((j) => mode === "assign"
+            ? isTrue(3 * c + j) : selSet.has(3 * c + j) && !clashing.has(3 * c + j)));
+
+        box.classList.toggle("clq-picking", mode === "clique");
+        nodeEls.forEach((g, i) => {
+            g.classList.toggle("clq-sel", selSet.has(i));
+            g.classList.toggle("clq-false", mode === "assign" && !isTrue(i));
+            g.classList.toggle("clq-hov", i === hover);
+            if (mode === "clique") {
+                g.setAttribute("tabindex", 0);
+                g.setAttribute("role", "button");
+                g.setAttribute("aria-pressed", String(selSet.has(i)));
+            } else {
+                ["tabindex", "role", "aria-pressed"].forEach((a) => g.removeAttribute(a));
+            }
+        });
+        litEls.forEach((e, i) => {
+            e.classList.toggle("clq-sel", selSet.has(i));
+            e.classList.toggle("clq-false", mode === "assign" && !isTrue(i));
+            e.classList.toggle("clq-hov", i === hover);
+        });
+        markEls.forEach((e, c) => {
+            e.textContent = sat[c] ? "✓" : mode === "assign" ? "✗" : "";
+            e.classList.toggle("clq-ok", sat[c]);
+        });
+        edgeEls.forEach(({ a, b, line }) => {
+            line.classList.toggle("clq-on", selSet.has(a) && selSet.has(b));
+            line.classList.toggle("clq-hot", a === hover || b === hover);
+        });
+        svg.classList.toggle("clq-hovering", hover >= 0);
+
+        // Dashed red lines mark the missing edges among the picked nodes.
+        missLayer.textContent = "";
+        miss.forEach(([a, b]) => {
+            const [p, q] = [nodeEls[a].dataset, nodeEls[b].dataset];
+            missLayer.append(el("line", { class: "clq-miss", x1: p.x, y1: p.y, x2: q.x, y2: q.y }));
+        });
+
+        // In clique mode the switches are read-only and show the values the picked literals force:
+        // neither side lit means the variable is free, both lit means the picks contradict.
+        assignEl.querySelectorAll(".clq-var").forEach((row) => {
+            const v = +row.dataset.v;
+            let isT, isF;
+            if (mode === "assign") {
+                isT = assign[v];
+                isF = !assign[v];
+            } else {
+                const signs = new Set(sel.filter((i) => nodes[i].v === v).map((i) => nodes[i].neg));
+                isT = signs.has(false);
+                isF = signs.has(true);
+            }
+            const [tBtn, fBtn] = row.querySelectorAll("button");
+            tBtn.setAttribute("aria-pressed", String(isT));
+            fBtn.setAttribute("aria-pressed", String(isF));
+            tBtn.disabled = fBtn.disabled = mode !== "assign";
+            row.classList.toggle("clq-var-bad", isT && isF);
+        });
+
+        // Orange marks what the user interacts with in the current mode.
+        const act = (s) => `<span class="clq-act">${s}</span>`;
+        const keySel = `<span class="clq-key-sel"><i>x</i></span>`;
+        if (mode === "assign") {
+            goalEl.innerHTML = `<b>Goal:</b> ${act("set the variables")} so every clause is satisfied.`;
+            keyEl.innerHTML = `${keySel} in the clique &ensp; <span class="clq-key-false"><i>x</i></span> false `
+                + `&ensp; <span class="clq-mark clq-ok">&#10003;</span>/<span class="clq-mark">&#10007;</span> clause satisfied / not`;
+        } else {
+            goalEl.innerHTML = `<b>Goal:</b> ${act("click nodes")} to form a ${k}-clique in <i>G</i>.`;
+            keyEl.innerHTML = `${keySel} selected &ensp; <span class="clq-mark clq-ok">&#10003;</span> clause made true by a selected literal`;
+        }
+
+        let text = "";
+        if (mode === "assign") {
+            if (sat.every(Boolean)) text = `<i>&phi;</i> is satisfied, and its true literals give a ${k}-clique.`;
+        } else if (miss.length > 0) {
+            const [a, b] = miss[0].map((i) => litHTML(nodes[i]));
+            text = `Not a clique: ${a} and ${b} `
+                + (nodes[miss[0][0]].c === nodes[miss[0][1]].c ? "are in the same triple." : "contradict.");
+        } else if (sel.length === k) {
+            text = `A ${k}-clique, and its literals give an assignment satisfying <i>&phi;</i>.`;
+        }
+        caption.innerHTML = text;
+    }
+
+    presetBtns.forEach((b) => b.addEventListener("click", () => {
+        presetBtns.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        load(b.dataset.p === "random" ? randomFormula() : PRESETS[b.dataset.p]);
+    }));
+    modeBtns.forEach((b) => b.addEventListener("click", () => {
+        mode = b.dataset.m;
+        modeBtns.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        picked = new Set();
+        update();
+    }));
+
+    load(PRESETS.example);
+})();
+</script>
