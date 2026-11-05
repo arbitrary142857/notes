@@ -1,0 +1,104 @@
+\lecture{15}
+\title{The Cook-Levin Theorem and Space Complexity}
+
+\begin{document}
+
+\subsection{The Cook-Levin Theorem}
+
+Let's return to the black-boxed result from
+\href{/18.404/lectures/14/#np-completeness}{Lecture 14}
+and actually provide a proof.
+
+\begin{theorem}{Cook-Levin}
+    The language $\mathrm{3SAT}$ is NP-complete.
+\end{theorem}
+
+\begin{proof}
+    We must show that for any $A \in \mathrm{NP}$, we have
+    $A \leq_p \mathrm{3SAT}$.
+    Recall from \href{/18.404/lectures/12-13/#polynomial-verifiability-np}{Lecture 12}
+    that since $A \in \mathrm{NP}$,
+    it follows that there is some NTM $M$
+    that decides $A$ in at most $n^k$ steps.
+
+    Any accepting computation history for $M$
+    can be represented using at most $n^k$ configurations,
+    each with length at most $n^k$.
+    Therefore, we can create, in polynomial time, an instance of $\mathrm{3SAT}$ such that:
+    \begin{itemize}
+        \item There are $n^k \cdot n^k \cdot |\Gamma \cup Q|$ variables
+        $x_{i, j, \epsilon}$, where $x_{i, j, \epsilon} = \textsc{True}$
+        if and only if the $i^{\text{th}}$ configuration has
+        $\epsilon \in \Gamma \cup Q$ in position $j$.
+        \item The instance is satisfied
+        if and only if the $\{x_{i, j, \epsilon}\}$ specify
+        an accepting computation history.
+    \end{itemize}
+    Details of how this instance looks were provided in lecture,
+    but I did not find them very interesting,
+    so they are omitted here.
+
+    \includewidget{lecture-15/tableau}
+
+    The (warning: AI-generated) widget above
+    shows this reduction for 
+    $A = \{w \in \{\str{0}, \str{1}\}^4
+    \mid w \text{ contains a } \str{1}\}$,
+    where the NTM $M$ simply scans the input string
+    and nondeterministically accepts if
+    its head is on a $\str{1}$.
+    ~ $\blacksquare$
+\end{proof}
+
+\subsection{Space Complexity}
+
+\textbf{Definition.}
+A TM has \textbf{space complexity} $f(n)$
+if it halts on all $w$ of length $n$
+using at most $f(n)$ tape cells.
+Furthermore:
+\begin{itemize}
+    \item We denote $\mathrm{SPACE}(f(n)) := \{
+        B \mid
+        B \text{ is decidable by a TM in space complexity } O(f(n))
+    \}$.
+    \begin{itemize}
+        \item We denote $\mathrm{PSPACE} :=
+        \bigcup_k \mathrm{SPACE}(n^k)$.
+    \end{itemize}
+    \item We denote $\mathrm{NSPACE}(f(n)) := \{
+        B \mid
+        B \text{ is decidable by an NTM in space complexity } O(f(n))
+    \}$.
+    \begin{itemize}
+        \item We denote $\mathrm{NPSPACE} :=
+        \bigcup_k \mathrm{NSPACE}(n^k)$.
+    \end{itemize}
+\end{itemize}
+
+\begin{theorem}{$\mathrm{TIME} \subseteq \mathrm{SPACE}$}
+    For any function $f(n) \geq n$, we have
+    $\mathrm{TIME}(f(n)) \subseteq \mathrm{SPACE}(f(n))$.
+\end{theorem}
+
+\begin{proof}
+    In $f(n)$ time, one can only ever visit
+    at most $f(n)$ tape cells. ~ $\blacksquare$
+\end{proof}
+
+\begin{theorem}{$\mathrm{SPACE} \subseteq \mathrm{TIME}$}
+    For any function $f(n)$, we have
+    $\mathrm{SPACE}(f(n)) \subseteq \mathrm{TIME}\left(2^{O(f(n))}\right)$.
+\end{theorem}
+
+\begin{proof}
+    There are only $2^{O(f(n))}$ configurations,
+    so any decider
+    cannot possibly take more than $2^{O(f(n))}$ steps,
+    or else it would loop and thus never halt.
+    ~ $\blacksquare$
+\end{proof}
+
+We'll pick up this discussion next lecture.
+
+\end{document}

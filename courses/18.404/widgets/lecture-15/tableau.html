@@ -1,0 +1,465 @@
+<div class="note-widget-box ckl-box">
+<div class="ckl-toolbar">
+    <div class="arm-seg ckl-loads" role="group" aria-label="Assignment">
+        <button type="button" class="arm-seg-btn" data-b="acc" aria-pressed="true">Accepting history</button>
+        <button type="button" class="arm-seg-btn" data-b="rej" aria-pressed="false">Rejecting history</button>
+    </div>
+    <div class="arm-seg ckl-modes" role="group" aria-label="Form">
+        <button type="button" class="arm-seg-btn" data-m="0" aria-pressed="true">CNF</button>
+        <button type="button" class="arm-seg-btn" data-m="1" aria-pressed="false">3-CNF</button>
+    </div>
+</div>
+<div class="ckl-w"><i>w</i> = <span class="ckl-bits" role="group" aria-label="Input w"></span></div>
+<div class="ckl-formula" role="tablist"></div>
+<svg class="ckl-tab" role="group" aria-label="The assignment, drawn as a tableau"></svg>
+<div class="ckl-detail" role="tabpanel">
+    <div class="ckl-def ckl-fit"></div>
+    <div class="ckl-card"><div class="ckl-inst ckl-fit"></div></div>
+    <div class="ckl-extra">
+        <div class="ckl-aux"></div>
+        <div class="ckl-rule"><div class="ckl-fit"></div><div class="ckl-fit"></div></div>
+        <div class="ckl-count"><div class="ckl-fit"></div><div class="ckl-fit"></div></div>
+    </div>
+</div>
+</div>
+
+<script>
+(function () {
+    const root = document.currentScript.closest(".note-html-embed");
+    const $ = (s) => root.querySelector(s);
+    const formulaEl = $(".ckl-formula"), bitsEl = $(".ckl-bits"), svg = $(".ckl-tab");
+    const ruleEl = $(".ckl-rule"), defEl = $(".ckl-def"), auxEl = $(".ckl-aux"), instEl = $(".ckl-inst"), countEl = $(".ckl-count");
+    const loadBtns = Array.from(root.querySelectorAll(".ckl-loads .arm-seg-btn"));
+    const modeBtns = Array.from(root.querySelectorAll(".ckl-modes .arm-seg-btn"));
+    const NS = "http://www.w3.org/2000/svg";
+
+    // Inputs have length N; the tableau is T x T.
+    const N = 4, T = 6;
+    // Gamma u Q, in the order used for epsilon < epsilon'.
+    const SYMS = [
+        { ch: "0", tex: "0" }, { ch: "1", tex: "1" }, { ch: "⊔", tex: "\\sqcup" },
+        { sub: "0", tex: "q_0", state: true },
+        { sub: "acc", tex: "q_{\\mathrm{acc}}", state: true, halt: true },
+        { sub: "rej", tex: "q_{\\mathrm{rej}}", state: true, halt: true },
+    ];
+    const S = SYMS.length, BLANK = 2, Q0 = 3, QA = 4;
+    // M scans right; on each 1 it may guess "accept". Entries are [state, write, move].
+    const DELTA = { [Q0]: {
+        0: [[Q0, 0, 1]],
+        1: [[Q0, 1, 1], [QA, 1, 1]],
+        [BLANK]: [[5, BLANK, -1]],
+    } };
+
+    // Successors of a row; the state symbol sits just left of the head. Halted rows repeat.
+    function step(row) {
+        const p = row.findIndex((s) => SYMS[s].state);
+        if (p < 0 || SYMS[row[p]].halt) return [row];
+        if (p + 1 >= T) return [];
+        return (DELTA[row[p]][row[p + 1]] || []).map(([q, b, d]) => {
+            const r = row.slice();
+            if (d > 0) { r[p] = b; r[p + 1] = q; }
+            else if (p === 0) { r[0] = q; r[1] = b; }
+            else { r[p - 1] = q; r[p] = row[p - 1]; r[p + 1] = b; }
+            return r;
+        });
+    }
+
+    // A 2x3 window centered at column j is legal if it appears in some row (with at most one
+    // state) stacked over one of its successors. BY_TOP[j] maps a top row to its legal bottoms.
+    const LEGAL = new Set(), BY_TOP = [];
+    for (let code = 0; code < S ** T; code++) {
+        const row = [];
+        for (let j = 0, c = code; j < T; j++, c = Math.floor(c / S)) row.push(c % S);
+        if (row.filter((s) => SYMS[s].state).length > 1) continue;
+        for (const next of step(row)) for (let j = 1; j < T - 1; j++) {
+            const top = row.slice(j - 1, j + 2).join(""), bot = next.slice(j - 1, j + 2).join("");
+            LEGAL.add(j + ":" + top + bot);
+            if (!BY_TOP[j]) BY_TOP[j] = new Map();
+            if (!BY_TOP[j].has(top)) BY_TOP[j].set(top, new Set());
+            BY_TOP[j].get(top).add(bot);
+        }
+    }
+    const ILLEGAL = [];  // ILLEGAL[j]: number of illegal windows centered at column j
+    for (let j = 1; j < T - 1; j++) {
+        ILLEGAL[j] = S ** 6 - [...BY_TOP[j].values()].reduce((a, b) => a + b.size, 0);
+    }
+    const MOVE_CLAUSES = (T - 1) * ILLEGAL.reduce((a, b) => a + (b || 0), 0);
+
+    let w = [0, 1, 0, 1];
+    let branches = [];   // every computation history of M on w, as T rows
+    let cells = [];      // T*T bitmasks: bit s of cells[k] is x_{i,j,s}
+    let part = "cell";
+    let cnf3 = false;
+    let sel = T + 1;     // selected cell
+    let win = [1, 1];    // selected window: top row, center column
+    let hovK = -1;       // cell of the hovered literal
+
+    const rowOf = (k) => Math.floor(k / T), colOf = (k) => k % T;
+    const startRow = () => [Q0, ...w, ...Array(T - N - 1).fill(BLANK)];
+    const symsOf = (m) => SYMS.map((_, s) => s).filter((s) => m >> s & 1);
+    const fmt = (n) => n.toLocaleString("en-US");
+
+    // ---------- Literals and clauses, as TeX ----------
+    // An x-literal is { k, s, neg }; a new 3-CNF variable is { z, val, neg }.
+    const litVal = (l) => (l.z ? l.val : (cells[l.k] >> l.s & 1) === 1) !== l.neg;
+
+    function litTex(l) {
+        const body = (l.neg ? "\\neg " : "")
+            + (l.z ? `z_{${l.z}}` : `x_{${rowOf(l.k) + 1},${colOf(l.k) + 1},${SYMS[l.s].tex}}`);
+        const cls = `ckl-lit ${litVal(l) ? "ckl-lt" : "ckl-lf"}${l.z ? " ckl-z" : ""}${l.w ? " ckl-wlit" : ""}`;
+        const t = `\\htmlClass{${cls}}{${body}}`;
+        return l.z ? t : `\\htmlData{k=${l.k},v=${l.s}}{${t}}`;
+    }
+
+    // keep(n): which literals to show; the rest collapse to a single \cdots.
+    function clauseTex(lits, keep) {
+        const parts = [];
+        lits.forEach((l, n) => {
+            if (!keep || keep(n)) parts.push(litTex(l));
+            else if (parts[parts.length - 1] !== "\\cdots") parts.push("\\cdots");
+        });
+        return `\\htmlClass{ckl-cl${lits.some(litVal) ? "" : " ckl-cl-bad"}}{(${parts.join(" \\lor ")})}`;
+    }
+
+    // Pads short clauses by repeating a literal; splits long ones with a chain of new variables.
+    // z_m is true exactly when l_1, ..., l_{m+1} are all false, which satisfies the chain
+    // whenever the original clause is satisfied.
+    function to3(lits) {
+        if (lits.length <= 3) return [[...lits, ...Array(3 - lits.length).fill(lits[lits.length - 1])]];
+        const k = lits.length;
+        const z = (m, neg) => ({ z: m, neg, val: lits.slice(0, m + 1).every((l) => !litVal(l)) });
+        const out = [[lits[0], lits[1], z(1, false)]];
+        for (let m = 1; m < k - 3; m++) out.push([z(m, true), lits[m + 1], z(m + 1, false)]);
+        out.push([z(k - 3, true), lits[k - 2], lits[k - 1]]);
+        return out;
+    }
+
+    // A conjunction of clauses, in 3-CNF if selected. keep(c, n, len): which clauses to show;
+    // a falsified clause is always shown.
+    function conjTex(clauses, keep) {
+        const flat = cnf3 ? clauses.flatMap(to3) : clauses;
+        const parts = [];
+        flat.forEach((c, n) => {
+            if (!keep || keep(c, n, flat.length) || !c.some(litVal)) parts.push(clauseTex(c));
+            else if (parts[parts.length - 1] !== "\\cdots") parts.push("\\cdots");
+        });
+        return parts.join(" \\land ");
+    }
+
+    const cellClauses = (k) => [
+        SYMS.map((_, s) => ({ k, s, neg: false })),
+        ...SYMS.flatMap((_, s) => SYMS.slice(s + 1).map((_, d) => [{ k, s, neg: true }, { k, s: s + 1 + d, neg: true }])),
+    ];
+    const windowCells = (i, j) => [i, i + 1].flatMap((r) => [j - 1, j, j + 1].map((c) => r * T + c));
+    const windowClause = (i, j, tuple) => windowCells(i, j).map((k, n) => ({ k, s: tuple[n], neg: true }));
+    const windowTex = (tuple, cls) => {
+        const e = tuple.map((s) => (s === null ? "\\cdot" : SYMS[s].tex));
+        const m = `\\left[\\begin{smallmatrix}${e.slice(0, 3).join("&")}\\\\${e.slice(3).join("&")}\\end{smallmatrix}\\right]`;
+        return cls ? `\\htmlClass{${cls}}{${m}}` : m;
+    };
+
+    // Under the CNF, a window is violated by every illegal tuple all of whose variables are true.
+    function badTuples(i, j, limit) {
+        const opts = windowCells(i, j).map((k) => symsOf(cells[k]));
+        const out = [], pick = [];
+        (function go(n) {
+            if (out.length >= limit) return;
+            if (n === 6) { if (!LEGAL.has(j + ":" + pick.join(""))) out.push(pick.slice()); return; }
+            opts[n].forEach((s) => { pick[n] = s; go(n + 1); });
+        })(0);
+        return out;
+    }
+
+    function evaluate() {
+        const cell = cells.map((_, k) => k).filter((k) => symsOf(cells[k]).length !== 1);
+        const start = startRow().map((s, j) => (cells[j] >> s & 1) ? -1 : j).filter((j) => j >= 0);
+        const move = [];
+        for (let i = 0; i < T - 1; i++) for (let j = 1; j < T - 1; j++) if (badTuples(i, j, 1).length) move.push([i, j]);
+        return { cell, start, move, accept: cells.some((m) => m >> QA & 1) };
+    }
+
+    // ---------- Formula header: the parts of phi_w are tabs ----------
+    const PARTS = ["cell", "start", "move", "accept"];
+    formulaEl.innerHTML = `<span class="ckl-part"><span class="ckl-part-body"><i>&phi;</i><sub><i>w</i></sub></span>`
+        + `<span class="ckl-mark"></span></span> = `
+        + PARTS.map((p) => `<span class="ckl-part" data-p="${p}"><button type="button" role="tab" class="ckl-part-body">`
+            + `<i>&phi;</i><sub>${p}</sub></button><span class="ckl-mark"></span></span>`).join(" &and; ");
+    const marks = Array.from(formulaEl.querySelectorAll(".ckl-mark"));
+    const tabs = Array.from(formulaEl.querySelectorAll("button"));
+    tabs.forEach((b) => b.addEventListener("click", () => { part = b.parentNode.dataset.p; update(); }));
+
+    // ---------- Tableau ----------
+    const CS = 30, X0 = 14, TOP = 14;
+    svg.setAttribute("viewBox", `0 0 ${X0 + T * CS + 3} ${TOP + T * CS + 3}`);
+    const layers = Array.from({ length: 5 }, () => svg.appendChild(el("g")));
+    const [hullLayer, textLayer, markLayer, hitLayer, barLayer] = layers;
+    for (let n = 0; n < T; n++) {
+        const ri = el("text", { class: "ckl-idx", x: X0 - 7, y: TOP + n * CS + CS / 2 + 3 });
+        ri.textContent = n + 1;
+        const ci = el("text", { class: "ckl-idx", x: X0 + n * CS + CS / 2, y: TOP - 5 });
+        ci.textContent = n + 1;
+        svg.insertBefore(ri, hullLayer);
+        svg.insertBefore(ci, hullLayer);
+    }
+    for (let k = 0; k < T * T; k++) {
+        svg.insertBefore(el("rect", { class: "ckl-cell", x: X0 + colOf(k) * CS, y: TOP + rowOf(k) * CS, width: CS, height: CS }), hullLayer);
+    }
+
+    function el(tag, attrs) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+        return e;
+    }
+
+    function symText(s, x, y, size) {
+        const t = el("text", { class: "ckl-sym", x, y, "font-size": size });
+        if (SYMS[s].sub) {
+            const q = el("tspan", { "font-style": "italic" });
+            q.textContent = "q";
+            const sub = el("tspan", { dy: size * 0.3, "font-size": size * 0.68 });
+            sub.textContent = SYMS[s].sub;
+            t.append(q, sub);
+        } else {
+            t.textContent = SYMS[s].ch;
+        }
+        return t;
+    }
+
+    function select(k) {
+        sel = k;
+        win = [Math.min(rowOf(k), T - 2), Math.min(Math.max(colOf(k), 1), T - 2)];
+        update();
+    }
+
+    for (let k = 0; k < T * T; k++) {
+        const hit = el("rect", {
+            class: "ckl-hit", x: X0 + colOf(k) * CS, y: TOP + rowOf(k) * CS, width: CS, height: CS,
+            tabindex: 0, role: "button", "aria-label": `Cell ${rowOf(k) + 1}, ${colOf(k) + 1}`,
+        });
+        hit.addEventListener("click", () => select(k));
+        hit.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(k); }
+        });
+        hitLayer.append(hit);
+    }
+
+    const box = (layer, cls, c0, r0, cols, rows, inset) => layer.appendChild(el("rect", {
+        class: cls, x: X0 + c0 * CS + inset, y: TOP + r0 * CS + inset,
+        width: cols * CS - 2 * inset, height: rows * CS - 2 * inset, rx: 4,
+    }));
+
+    function drawTableau(ev) {
+        layers.forEach((g) => { if (g !== hitLayer) g.textContent = ""; });
+        // The current part's scope, in its color; red marks where it is falsified.
+        if (part === "cell") box(hullLayer, "ckl-hull", colOf(sel), rowOf(sel), 1, 1, 1);
+        else if (part === "start") box(hullLayer, "ckl-hull", 0, 0, T, 1, 1);
+        else if (part === "move") box(hullLayer, "ckl-hull", win[1] - 1, win[0], 3, 2, 1);
+        else box(hullLayer, "ckl-hull", 0, 0, T, T, 1);
+        hullLayer.setAttribute("data-p", part);
+
+        cells.forEach((m, k) => {
+            const syms = symsOf(m), x = X0 + colOf(k) * CS, y = TOP + rowOf(k) * CS;
+            if (syms.length === 1) textLayer.append(symText(syms[0], x + CS / 2, y + CS / 2 + 4.5, 13));
+            else syms.forEach((s, n) => textLayer.append(symText(s, x + (n % 2 ? 22 : 8), y + 10 + 9 * Math.floor(n / 2), 8)));
+        });
+
+        if (part === "cell") ev.cell.forEach((k) => box(markLayer, "ckl-bad", colOf(k), rowOf(k), 1, 1, 3));
+        if (part === "start") ev.start.forEach((k) => box(markLayer, "ckl-bad", k, 0, 1, 1, 3));
+        if (part === "move") {
+            // An illegal window is a red bar between its two rows, under its center column.
+            ev.move.forEach(([i, j]) => {
+                const g = barLayer.appendChild(el("g", { class: "ckl-barg" }));
+                g.append(el("rect", { class: "ckl-bar", x: X0 + j * CS + 5, y: TOP + (i + 1) * CS - 2, width: CS - 10, height: 4, rx: 2 }));
+                g.append(el("rect", { class: "ckl-barhit", x: X0 + j * CS, y: TOP + (i + 1) * CS - 6, width: CS, height: 12 }));
+                g.addEventListener("click", () => { win = [i, j]; update(); });
+            });
+        }
+        if (hovK >= 0) box(markLayer, "ckl-hov", colOf(hovK), rowOf(hovK), 1, 1, 1.5);
+    }
+
+    // ---------- Definition and instance ----------
+    const D = "\\displaystyle ";
+    const DEF = {
+        cell: `\\varphi_{\\mathrm{cell}} = ${D}\\bigwedge_{i,j} \\Big[ \\Big( \\bigvee_{\\epsilon} x_{i,j,\\epsilon} \\Big) \\land `
+            + `\\bigwedge_{\\epsilon < \\epsilon'} (\\neg x_{i,j,\\epsilon} \\lor \\neg x_{i,j,\\epsilon'}) \\Big]`,
+        start: `\\varphi_{\\mathrm{start}} = x_{1,1,q_0} \\land x_{1,2,w_1} \\land \\cdots \\land x_{1,n+1,w_n} `
+            + `\\land x_{1,n+2,\\sqcup} \\land \\cdots \\land x_{1,n^k,\\sqcup}`,
+        move: `\\varphi_{\\mathrm{move}} = ${D}\\bigwedge_{i,j} \\bigwedge_{\\substack{\\left[\\begin{smallmatrix}a&b&c\\\\d&e&f\\end{smallmatrix}\\right] \\\\ \\text{illegal}}} `
+            + `(\\neg x_{i,j-1,a} \\lor \\neg x_{i,j,b} \\lor \\neg x_{i,j+1,c} \\lor \\neg x_{i+1,j-1,d} \\lor \\neg x_{i+1,j,e} \\lor \\neg x_{i+1,j+1,f})`,
+        accept: `\\varphi_{\\mathrm{accept}} = ${D}\\bigvee_{i,j} x_{i,j,q_{\\mathrm{acc}}}`,
+    };
+    const RULE = [`(\\ell_1) \\mapsto (\\ell_1 \\lor \\ell_1 \\lor \\ell_1) \\qquad (\\ell_1 \\lor \\ell_2) \\mapsto (\\ell_1 \\lor \\ell_2 \\lor \\ell_2)`,
+        `(\\ell_1 \\lor \\cdots \\lor \\ell_k) \\mapsto (\\ell_1 \\lor \\ell_2 \\lor z_1) \\land (\\neg z_1 \\lor \\ell_3 \\lor z_2) \\land \\cdots \\land (\\neg z_{k-3} \\lor \\ell_{k-1} \\lor \\ell_k)`];
+    const DELTA_TEX = `\\delta(q_0, 0) = \\{(q_0, 0, \\mathrm{R})\\} \\qquad `
+        + `\\delta(q_0, 1) = \\{(q_0, 1, \\mathrm{R}), (q_{\\mathrm{acc}}, 1, \\mathrm{R})\\} \\qquad `
+        + `\\delta(q_0, \\sqcup) = \\{(q_{\\mathrm{rej}}, \\sqcup, \\mathrm{L})\\}`;
+
+    let tex = null;
+    function render(target, src) {
+        if (!tex) return;
+        if (!src) { target.textContent = ""; return; }
+        tex(src, target);
+    }
+
+    // Each line stays on one line, shrinking to fit the box when it is too wide.
+    function fit() {
+        const scale = (e) => parseFloat(e.style.fontSize) || 1;
+        root.querySelectorAll(".ckl-fit").forEach((e) => {
+            e.style.fontSize = "";
+            if (e.scrollWidth > e.clientWidth + 1) e.style.fontSize = `${Math.max(0.5, 0.97 * e.clientWidth / e.scrollWidth)}em`;
+        });
+        // The general definition (0.95em) is never set larger than the instance below it (1.2em).
+        const cap = scale(instEl) * (1.2 / 0.95) * 0.9;
+        if (scale(defEl) > cap) defEl.style.fontSize = `${cap}em`;
+    }
+    new ResizeObserver(fit).observe(root.querySelector(".ckl-detail"));
+
+    function detail() {
+        let aux = "", inst, count;
+        if (part === "cell") {
+            inst = conjTex(cellClauses(sel), (c, n, len) => n < 2 || n === len - 1);
+            const per = cnf3 ? 19 : 16;
+            count = `${per} clauses per cell, ${fmt(per * T * T)} in all` + (cnf3 ? `, ${3 * T * T} new variables` : "");
+        } else if (part === "start") {
+            inst = conjTex(startRow().map((s, j) => [{ k: j, s, neg: false, w: j >= 1 && j <= N }]));
+            count = `${T} clauses`;
+        } else if (part === "move") {
+            const [i, j] = win;
+            const tuple = windowCells(i, j).map((k) => {
+                const ss = symsOf(cells[k]);
+                return ss.length === 1 ? ss[0] : null;
+            });
+            const top = tuple.slice(0, 3), bot = tuple.slice(3).join("");
+            const legal = top.includes(null) ? [] : [...(BY_TOP[j].get(top.join("")) || [])];
+            aux = `<div class="ckl-delta ckl-fit"></div>` + (legal.length ? `<div class="ckl-legal ckl-fit"></div>` : "");
+            auxEl.innerHTML = aux;
+            render(auxEl.querySelector(".ckl-delta"), DELTA_TEX);
+            if (legal.length) {
+                render(auxEl.querySelector(".ckl-legal"), `\\text{legal:}\\;\\; ` + legal.map((b) =>
+                    windowTex([...top, ...b.split("").map(Number)], b === bot ? "ckl-win-on" : "")).join("\\;\\;"));
+            }
+            // A clause this window falsifies; if none, the clause for one illegal window.
+            let shown = badTuples(i, j, 1);
+            if (!shown.length) {
+                const t = windowCells(i, j).map((k) => symsOf(cells[k])[0] ?? 0);
+                for (let s = 0; s < S; s++) {
+                    t[4] = s;
+                    if (!LEGAL.has(j + ":" + t.join(""))) break;
+                }
+                shown = [t];
+            }
+            inst = `${windowTex(shown[0], "ckl-win-bad")} \\;\\mapsto\\; `
+                + conjTex([windowClause(i, j, shown[0])], (c, n, len) => n < 2 || n === len - 1);
+            const per = cnf3 ? 4 : 1;
+            count = `${cnf3 ? "4 × " : ""}(6⁶ − ${fmt(S ** 6 - ILLEGAL[j])} legal) = ${fmt(ILLEGAL[j] * per)} clauses per window, `
+                + `${fmt(MOVE_CLAUSES * per)} in all` + (cnf3 ? `, ${fmt(MOVE_CLAUSES * 3)} new variables` : "");
+        } else {
+            const lits = cells.map((_, k) => ({ k, s: QA, neg: false }));
+            inst = cnf3
+                ? conjTex([lits], (c, n, len) => n < 1 || n === len - 1 || c.some((x) => !x.z && litVal(x)))
+                : clauseTex(lits, (n) => n < 2 || n === T * T - 1 || litVal(lits[n]));
+            count = cnf3 ? `${T * T - 2} clauses, ${T * T - 3} new variables` : `1 clause`;
+        }
+        if (!aux) auxEl.innerHTML = "";
+        ruleEl.querySelectorAll("div").forEach((d, n) => render(d, cnf3 ? RULE[n] : ""));
+        render(defEl, DEF[part]);
+        instEl.parentNode.dataset.p = part;
+        render(instEl, inst);
+
+        const vars = T * T * S + (cnf3 ? 3 * T * T + 3 * MOVE_CLAUSES + T * T - 3 : 0);
+        const clauses = cnf3 ? 19 * T * T + T + 4 * MOVE_CLAUSES + T * T - 2 : 16 * T * T + T + MOVE_CLAUSES + 1;
+        const [partCount, total] = countEl.children;
+        partCount.textContent = count;
+        total.innerHTML = `<i>&phi;</i><sub><i>w</i></sub>: ${fmt(clauses)} clauses over ${fmt(vars)} variables`;
+        fit();
+    }
+
+    instEl.addEventListener("click", (e) => {
+        const lit = e.target.closest("[data-k]");
+        if (!lit) return;
+        cells[+lit.dataset.k] ^= 1 << +lit.dataset.v;
+        update();
+    });
+    instEl.addEventListener("pointerover", (e) => {
+        const lit = e.target.closest("[data-k]");
+        const k = lit ? +lit.dataset.k : -1;
+        if (k !== hovK) { hovK = k; drawTableau(evaluate()); }
+    });
+    instEl.addEventListener("pointerleave", () => { hovK = -1; drawTableau(evaluate()); });
+
+    function update() {
+        const ev = evaluate();
+        drawTableau(ev);
+        detail();
+        const ok = [ev.cell.length === 0, ev.start.length === 0, ev.move.length === 0, ev.accept];
+        [ok.every(Boolean), ...ok].forEach((v, n) => {
+            marks[n].textContent = v ? "✓" : "✗";
+            marks[n].classList.toggle("ckl-ok", v);
+        });
+        tabs.forEach((b) => b.setAttribute("aria-selected", String(b.parentNode.dataset.p === part)));
+        const match = branches.find((rows) => rows.every((row, i) => row.every((s, j) => cells[i * T + j] === 1 << s)));
+        loadBtns.forEach((b) => b.setAttribute("aria-pressed", String(!!match && accepts(match) === (b.dataset.b === "acc"))));
+    }
+
+    // ---------- Input and computation histories ----------
+    const accepts = (rows) => rows[T - 1].includes(QA);
+
+    function loadHistory(acc) {
+        const options = branches.filter((rows) => accepts(rows) === acc);
+        if (!options.length) return;
+        // Repeated clicks step through the accepting histories.
+        const now = options.findIndex((rows) => rows.every((row, i) => row.every((s, j) => cells[i * T + j] === 1 << s)));
+        cells = options[(now + 1) % options.length].flat().map((s) => 1 << s);
+        update();
+    }
+
+    function load() {
+        bitsEl.querySelectorAll("button").forEach((b, n) => { b.textContent = w[n]; });
+        branches = [];
+        (function go(rows) {
+            if (rows.length === T) { branches.push(rows); return; }
+            step(rows[rows.length - 1]).forEach((r) => go([...rows, r]));
+        })([startRow()]);
+        loadBtns[0].disabled = !branches.some(accepts);
+        cells = [];
+        loadHistory(branches.some(accepts));
+    }
+
+    bitsEl.innerHTML = w.map((_, n) => `<button type="button" aria-label="Bit ${n + 1} of w"></button>`).join("");
+    bitsEl.querySelectorAll("button").forEach((b, n) => b.addEventListener("click", () => {
+        w[n] = 1 - w[n];
+        load();
+        // Only phi_start depends on w.
+        const t = tabs[PARTS.indexOf("start")];
+        t.classList.remove("ckl-flash");
+        void t.offsetWidth;
+        t.classList.add("ckl-flash");
+    }));
+    loadBtns.forEach((b) => b.addEventListener("click", () => loadHistory(b.dataset.b === "acc")));
+    modeBtns.forEach((b) => b.addEventListener("click", () => {
+        cnf3 = b.dataset.m === "1";
+        modeBtns.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        update();
+    }));
+
+    load();
+
+    // The formulas are typeset with the KaTeX the site already serves.
+    function ready() {
+        tex = (src, target) => window.katex.render(src, target, { trust: true, strict: false, throwOnError: false });
+        update();
+    }
+    if (window.katex) {
+        ready();
+    } else {
+        let s = document.querySelector("script[data-katex]");
+        if (!s) {
+            s = document.createElement("script");
+            s.src = "/katex/katex.min.js";
+            s.dataset.katex = "";
+            document.head.append(s);
+        }
+        s.addEventListener("load", ready);
+    }
+})();
+</script>

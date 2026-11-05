@@ -1826,6 +1826,267 @@ code.verbatim-inline {
 .ham-key-ring.ham-key-bad {
   border: 1.5px dashed #c0392b;
 }
+/* Cook-Levin reduction. Each part of phi_w has a color, used for its tab and its scope in the tableau. */
+.ckl-box [data-p="cell"] {
+  --ckl-c: #7b4fa0;
+  --ckl-bg: rgba(123, 79, 160, 0.12);
+}
+.ckl-box [data-p="start"] {
+  --ckl-c: #2b6cb0;
+  --ckl-bg: rgba(43, 108, 176, 0.12);
+}
+.ckl-box [data-p="move"] {
+  --ckl-c: #3a9e4a;
+  --ckl-bg: rgba(58, 158, 74, 0.12);
+}
+.ckl-box [data-p="accept"] {
+  --ckl-c: #b26a00;
+  --ckl-bg: rgba(178, 106, 0, 0.1);
+}
+.note-widget-box.ckl-box {
+  max-width: 38em;
+  padding: 0.85em 1.25em 1.1em;
+}
+.ckl-box sub {
+  line-height: 0;
+}
+.ckl-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5em 1em;
+}
+.ckl-loads .arm-seg-btn:disabled {
+  color: #b8aea2;
+  cursor: default;
+}
+.ckl-w {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35em;
+  margin-top: 0.8em;
+  font-family: var(--body-font);
+  font-size: 1.05em;
+}
+.ckl-bits {
+  display: inline-flex;
+  border: 1.5px solid #b26a00;
+}
+.ckl-bits button {
+  min-width: 2.2em;
+  padding: 0.3em 0.5em;
+  border: none;
+  background: #fff;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+}
+.ckl-bits button + button {
+  border-left: 1px solid #d5cec4;
+}
+.ckl-bits button:hover {
+  background: #faf8f5;
+}
+.ckl-formula {
+  margin-top: 0.6em;
+  font-family: var(--body-font);
+  font-size: 1.15em;
+  line-height: 1.5;
+  text-align: center;
+}
+.ckl-part {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ckl-part-body {
+  padding: 0 0.2em;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+button.ckl-part-body {
+  border-bottom-color: var(--ckl-c);
+  cursor: pointer;
+}
+button.ckl-part-body:hover,
+button.ckl-part-body[aria-selected="true"] {
+  background: var(--ckl-bg);
+}
+button.ckl-part-body[aria-selected="true"] {
+  border-bottom-width: 3px;
+}
+@keyframes ckl-flash {
+  from { background: rgba(43, 108, 176, 0.35); }
+}
+.ckl-part-body.ckl-flash {
+  animation: ckl-flash 1.2s ease-out;
+}
+.ckl-mark {
+  min-height: 1.3em;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.7em;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #c0392b;
+}
+.ckl-mark.ckl-ok {
+  color: #3a9e4a;
+}
+.ckl-tab {
+  display: block;
+  width: 100%;
+  max-width: 14em;
+  margin: 0.3em auto 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ckl-idx {
+  fill: #a59c90;
+  font-size: 9px;
+  text-anchor: middle;
+}
+.ckl-cell {
+  fill: #fff;
+  stroke: #d5cec4;
+  stroke-width: 1;
+}
+.ckl-sym {
+  fill: #1a1a1a;
+  font-family: var(--body-font);
+  text-anchor: middle;
+  pointer-events: none;
+}
+.ckl-hull {
+  fill: var(--ckl-bg);
+  stroke: var(--ckl-c);
+  stroke-width: 2;
+}
+.ckl-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.ckl-hit:focus {
+  outline: none;
+}
+.ckl-hit:focus-visible {
+  stroke: #2f2a24;
+  stroke-width: 2;
+}
+.ckl-bad {
+  fill: none;
+  stroke: #c0392b;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+  pointer-events: none;
+}
+.ckl-hov {
+  fill: none;
+  stroke: #2f2a24;
+  stroke-width: 2;
+  pointer-events: none;
+}
+.ckl-barg {
+  cursor: pointer;
+}
+.ckl-bar {
+  fill: #c0392b;
+}
+.ckl-barhit {
+  fill: transparent;
+}
+.ckl-detail {
+  margin-top: 0.5em;
+  text-align: center;
+}
+/* Three levels: the general definition is muted, the instance for the current selection sits in
+   a card in its part's color (matching its scope in the tableau), and the details are smallest. */
+.ckl-def {
+  color: #8a8176;
+}
+.ckl-def .katex {
+  font-size: 0.95em;
+}
+.ckl-card {
+  margin: 0.5em 0 0;
+  padding: 0.35em 0.8em;
+  border: 2px solid var(--ckl-c);
+  border-radius: calc(6px * var(--ui-scale));
+  background: var(--ckl-bg);
+}
+.ckl-inst {
+  line-height: 2;
+}
+.ckl-inst .katex {
+  font-size: 1.2em;
+}
+.ckl-extra {
+  margin-top: 0.7em;
+  padding-top: 0.4em;
+  border-top: 1px dashed #d5cec4;
+  font-size: 0.85em;
+  color: #a59c90;
+}
+.ckl-extra > div:has(.katex) {
+  margin-top: 0.25em;
+}
+.ckl-legal .katex .text {
+  color: inherit;
+}
+/* Each line of the detail stays on one line; the script shrinks one that is too wide,
+   and past its minimum size the line scrolls. */
+.ckl-fit {
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.ckl-cl {
+  padding: 0.1em 0;
+  border-radius: calc(3px * var(--ui-scale));
+}
+.ckl-cl-bad {
+  background: rgba(192, 57, 43, 0.12);
+  box-shadow: 0 0 0 1px #c0392b;
+}
+.ckl-lf {
+  color: #b8aea2;
+}
+.ckl-card .ckl-lf {
+  color: #8a8176;
+}
+.ckl-z.ckl-lt {
+  color: #b26a00;
+}
+.ckl-z.ckl-lf {
+  color: #dcc39a;
+}
+[data-k] {
+  cursor: pointer;
+}
+[data-k]:hover .ckl-lit {
+  background: #ede8e0;
+}
+.ckl-wlit {
+  border-bottom: 1.5px solid #2b6cb0;
+}
+.ckl-win-on {
+  color: #3a9e4a;
+}
+.ckl-win-bad {
+  color: #c0392b;
+}
+.ckl-count {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+.ckl-count i {
+  font-family: var(--body-font);
+}
 section.env {
   margin: 1em 0;
 }
